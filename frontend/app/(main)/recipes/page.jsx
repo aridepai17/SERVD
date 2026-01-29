@@ -20,6 +20,7 @@ export default function SavedRecipesPage() {
 	}, []);
 
 	const recipes = recipesData?.recipes || [];
+    const isLoading = loading ?? true;
 
 	return (
 		<div className="min-h-screen bg-stone-50 pt-24 pb-16 px-4">
@@ -38,7 +39,7 @@ export default function SavedRecipesPage() {
 				</div>
 
 				{/* Loading State */}
-				{loading && (
+				{isLoading && (
 					<div className="flex flex-col items-center justify-center py-20">
 						<Loader2 className="w-12 h-12 text-orange-600 animate-spin mb-6" />
 						<p className="text-stone-600">
@@ -48,7 +49,7 @@ export default function SavedRecipesPage() {
 				)}
 
 				{/* Recipes Grid */}
-				{!loading && recipes.length > 0 && (
+				{!isLoading && recipes.length > 0 && (
 					<div className="grid md:grid-cols-2 gap-6">
 						{recipes.map((recipe) => (
 							<RecipeCard
@@ -61,7 +62,7 @@ export default function SavedRecipesPage() {
 				)}
 
 				{/* Empty State */}
-				{!loading && recipes.length === 0 && (
+				{!isLoading && recipes.length === 0 && (
 					<div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-stone-200">
 						<div className="bg-orange-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
 							<Bookmark className="w-10 h-10 text-orange-600" />
