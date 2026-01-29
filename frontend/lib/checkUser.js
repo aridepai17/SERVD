@@ -21,7 +21,7 @@ export const checkUser = async () => {
 
 	try {
 		const existingUserResponse = await fetch(
-			`${STRAPI_URL}/api/users?filters[clerkId][$eq]=${user.id}`,
+			`${STRAPI_URL}/api/users?filters[clerkId][$eq]=${encodeURIComponent(user.id)}`,
 			{
 				headers: {
 					Authorization: `Bearer ${STRAPI_API_TOKEN}`,
@@ -42,14 +42,24 @@ export const checkUser = async () => {
 			const existingUser = existingUserData[0];
 
 			if (existingUser.subscriptionTier !== subscriptionTier) {
-				await fetch(`${STRAPI_URL}/api/users/${existingUser.id}`, {
-					method: "PUT",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+				const updateResponse = await fetch(
+					`${STRAPI_URL}/api/users/${existingUser.id}`,
+					{
+						method: "PUT",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+						},
+						body: JSON.stringify({ subscriptionTier }),
 					},
-					body: JSON.stringify({ subscriptionTier }),
-				});
+				);
+				if (!updateResponse.ok) {
+					console.error(
+						"Failed to update subscription tier:",
+						await updateResponse.text(),
+					);
+					return existingUser;
+				}
 			}
 
 			return { ...existingUser, subscriptionTier };
@@ -64,7 +74,16 @@ export const checkUser = async () => {
 			},
 		);
 
+		if (!rolesResponse.ok) {
+			console.error("Failed to fetch roles:", await rolesResponse.text());
+			return null;
+		}
+
 		const rolesData = await rolesResponse.json();
+		if (!rolesData.roles) {
+			console.error("Unexpected roles response structure");
+			return null;
+		}
 		const authenticatedRole = rolesData.roles.find(
 			(role) => role.type === "authenticated",
 		);
@@ -74,11 +93,15 @@ export const checkUser = async () => {
 			return null;
 		}
 
+		const primaryEmail = user.emailAddresses?.[0]?.emailAddress;
+		if (!primaryEmail) {
+			console.error("User had no email address");
+			return null;
+		}
+
 		const userData = {
-			username:
-				user.username ||
-				user.emailAddresses[0].emailAddress.split("@")[0],
-			email: user.emailAddresses[0].emailAddress,
+			username: user.username || primaryEmail.split("@")[0],
+			email: primaryEmail,
 			password: `clerk_managed_${user.id}_${Date.now()}`,
 			confirmed: true,
 			blocked: false,
