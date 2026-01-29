@@ -85,7 +85,7 @@ export default function SavedRecipesPage() {
 									variant="outline"
 									className="border-stone-300 gap-2"
 								>
-									Check Your pantry
+									Check your pantry
 								</Button>
 							</Link>
 						</div>
