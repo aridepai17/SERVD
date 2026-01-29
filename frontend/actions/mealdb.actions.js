@@ -1,6 +1,6 @@
-"user server";
+"use server";
 
-const MEALDB_BASE = "www.themealdb.com/api/json/v1/1";
+const MEALDB_BASE = "https://www.themealdb.com/api/json/v1/1";
 
 // Get random recipe of the day
 export async function getRecipeOfTheDay() {
@@ -14,6 +14,9 @@ export async function getRecipeOfTheDay() {
 		}
 
 		const data = await response.json();
+        if (!data.meals || data.meals.length === 0) {
+            throw new Error("No recipe found for the day")
+        }
 		return {
 			success: true,
 			recipe: data.meals[0],
