@@ -25,7 +25,7 @@ const Header = async () => {
 						className="w-16"
 					/>
 				</Link>
-				<div className="hideend md:flex items-center space-x-8 text-sm font-medium text-stone-600">
+				<div className="hidden md:flex items-center space-x-8 text-sm font-medium text-stone-600">
 					<Link
 						href="/recipes"
 						className="hover:text-orange-600 transition-colors flex gap-1.5 items-center"
@@ -41,7 +41,7 @@ const Header = async () => {
 						My Pantry
 					</Link>
 				</div>
-				<div className="flex Items-center space-x-4">
+				<div className="flex items-center space-x-4">
 					<SignedIn>
 						<UserDropdown />
 					</SignedIn>
@@ -50,7 +50,7 @@ const Header = async () => {
 						<SignInButton mode="modal">
 							<Button
 								variant="ghost"
-								className="text-stone-600 hover:text-text-orange-600 hover:bg-orange-50 font-medium"
+								className="text-stone-600 hover:text-orange-600 hover:bg-orange-50 font-medium"
 							>
 								Sign In
 							</Button>
@@ -58,7 +58,7 @@ const Header = async () => {
 						<SignUpButton mode="modal">
 							<Button
 								variant="primary"
-								className="rouonded-full px-6"
+								className="rounded-full px-6"
 							>
 								Get Started
 							</Button>
