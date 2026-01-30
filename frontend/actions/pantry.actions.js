@@ -301,7 +301,7 @@ export async function deletePantryItem(formData) {
 		}
 
 		const itemData = await itemResponse.json();
-		const itemOwnerId = itemData.data?.owner?.clerkId;
+		const itemOwnerId = itemData.data?.owner?.id;
 
 		if (itemOwnerId !== user.id) {
 			throw new Error("Not authorized to delete this item");
@@ -340,8 +340,16 @@ export async function updatePantryItem(formData) {
 		}
 
 		const itemId = formData.get("itemId");
-		const name = formData.get("name");
-		const quantity = formData.get("quantity");
+		if (!itemId || typeof itemId !== "string" || !itemId.trim()) {
+			throw new Error("Item ID is required");
+		}
+
+		const name = formData.get("name")?.trim();
+		const quantity = formData.get("quantity")?.trim();
+
+		if (!name || !quantity) {
+			throw new Error("Name and quantity are required");
+		}
 
 		// Verify ownership before update
 		const itemResponse = await fetch(
@@ -358,7 +366,7 @@ export async function updatePantryItem(formData) {
 		}
 
 		const itemData = await itemResponse.json();
-		const itemOwnerId = itemData.data?.owner?.clerkId;
+		const itemOwnerId = itemData.data?.owner?.id;
 
 		if (itemOwnerId !== user.id) {
 			throw new Error("Not authorized to update this item");
