@@ -17,7 +17,7 @@ export default function ImageUploader({ onImageSelect, loading }) {
 			if (!file) return;
 
 			// Create preview
-			const reader = newFileReader();
+			const reader = new FileReader();
 			reader.onloadend = () => {
 				setPreview(reader.result);
 			};
@@ -65,8 +65,7 @@ export default function ImageUploader({ onImageSelect, loading }) {
 					fill
 					className="object-cover"
 				/>
-				{!loading &
-				(
+				{!loading && (
 					<button
 						onClick={clearImage}
 						className="absolute top-4 right-4 bg-white/90 hover:bg-white p-2 rounded-full shadow-lg transition-all"
@@ -75,7 +74,7 @@ export default function ImageUploader({ onImageSelect, loading }) {
 					</button>
 				)}
 				{loading && (
-					<div className="absolute inset-0 bg-black/40 flex item-center justify-center">
+					<div className="absolute inset-0 bg-black/40 flex items-center justify-center">
 						<RingLoader color="white" />
 					</div>
 				)}
@@ -92,10 +91,10 @@ export default function ImageUploader({ onImageSelect, loading }) {
 			>
 				<input {...getInputProps()} />
 
-				<div clasName="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center">
+				<div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center">
 					{/* Icon */}
 					<div
-						className={`p-4 rounded-full transition-full ${isDragActive ? "bg-orange-600 scale-110" : "bg-orange-100"}`}
+						className={`p-4 rounded-full transition-all ${isDragActive ? "bg-orange-600 scale-110" : "bg-orange-100"}`}
 					>
 						{isDragActive ? (
 							<ImageIcon className="w-8 h-8 text-white" />
