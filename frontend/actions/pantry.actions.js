@@ -275,6 +275,27 @@ export async function deletePantryItem(formData) {
 
 		const itemId = formData.get("itemId");
 
+		// Verify ownership before deletion
+		const itemResponse = await fetch(
+			`${STRAPI_URL}/api/pantry-items/${itemId}?populate=owner`,
+			{
+				headers: {
+					Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+				},
+			},
+		);
+
+		if (!itemResponse.ok) {
+			throw new Error("Item not found");
+		}
+
+		const itemData = await itemResponse.json();
+		const itemOwnerId = itemData.data?.owner?.id;
+
+		if (itemOwnerId !== user.id) {
+			throw new Error("Not authorized to delete this item");
+		}
+
 		const response = await fetch(
 			`${STRAPI_URL}/api/pantry-items/${itemId}`,
 			{
@@ -310,6 +331,27 @@ export async function updatePantryItem(formData) {
 		const itemId = formData.get("itemId");
 		const name = formData.get("name");
 		const quantity = formData.get("quantity");
+
+		// Verify ownership before update
+		const itemResponse = await fetch(
+			`${STRAPI_URL}/api/pantry-items/${itemId}?populate=owner`,
+			{
+				headers: {
+					Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+				},
+			},
+		);
+
+		if (!itemResponse.ok) {
+			throw new Error("Item not found");
+		}
+
+		const itemData = await itemResponse.json();
+		const itemOwnerId = itemData.data?.owner?.id;
+
+		if (itemOwnerId !== user.id) {
+			throw new Error("Not authorized to update this item");
+		}
 
 		const response = await fetch(
 			`${STRAPI_URL}/api/pantry-items/${itemId}`,
