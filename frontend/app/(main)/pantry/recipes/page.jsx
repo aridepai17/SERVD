@@ -25,8 +25,6 @@ export default function PantryRecipesPage() {
 		fn: fetchSuggestions,
 	} = useFetch(getRecipesByPantryIngredients);
 
-	console.log(recipesData);
-
 	// Load suggestions on mount
 	useEffect(() => {
 		fetchSuggestions();
