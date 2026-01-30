@@ -157,7 +157,7 @@ export default function ImageUploader({ onImageSelect, loading }) {
 
 					{/* Helper Text */}
 					<p className="text-xs text-stone-400">
-						Supports JPG, JPEG, WEBP • Max 10MB
+						Supports JPG, PNG,JPEG, WEBP • Max 10MB
 					</p>
 				</div>
 			</div>
