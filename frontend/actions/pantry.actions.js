@@ -52,6 +52,14 @@ export async function scanPantryImage(formData) {
 			throw new Error("No image provided");
 		}
 
+		const maxSize = 10 * 1024 * 1024; // 10MB
+		const allowed = ["image/jpeg", "image/png", "image/webp"];
+		if (!allowed.includes(imageFile.type) || imageFile.size > maxSize) {
+			throw new Error(
+				"Unsupported file type or file too large (max 10MB)",
+			);
+		}
+
 		// Convert image to base64
 		const bytes = await imageFile.arrayBuffer();
 		const buffer = Buffer.from(bytes);
@@ -161,10 +169,13 @@ export async function saveToPantry(formData) {
 				}),
 			});
 
-			if (response.ok) {
-				const data = await response.json();
-				savedItems.push(data.data);
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error(`Failed to save item: ${errorText}`);
 			}
+
+			const data = await response.json();
+			savedItems.push(data.data);
 		}
 
 		return {
