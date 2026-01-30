@@ -301,7 +301,7 @@ export async function deletePantryItem(formData) {
 		}
 
 		const itemData = await itemResponse.json();
-		const itemOwnerId = itemData.data?.owner?.id;
+		const itemOwnerId = itemData.data?.owner?.clerkId;
 
 		if (itemOwnerId !== user.id) {
 			throw new Error("Not authorized to delete this item");
@@ -358,7 +358,7 @@ export async function updatePantryItem(formData) {
 		}
 
 		const itemData = await itemResponse.json();
-		const itemOwnerId = itemData.data?.owner?.id;
+		const itemOwnerId = itemData.data?.owner?.clerkId;
 
 		if (itemOwnerId !== user.id) {
 			throw new Error("Not authorized to update this item");
