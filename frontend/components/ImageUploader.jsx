@@ -43,6 +43,12 @@ export default function ImageUploader({ onImageSelect, loading }) {
 	const handleFileInputChange = (e) => {
 		const file = e.target.files?.[0];
 		if (file) {
+			const maxSize = 10 * 1024 * 1024; // 10MB
+			const allowed = ["image/jpeg", "image/png", "image/webp"];
+			if (!allowed.includes(file.type) || file.size > maxSize) {
+				onImageSelect(null);
+				return;
+			}
 			onDrop([file]);
 		}
 	};
