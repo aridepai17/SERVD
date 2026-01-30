@@ -47,6 +47,9 @@ export default function ImageUploader({ onImageSelect, loading }) {
 			const allowed = ["image/jpeg", "image/png", "image/webp"];
 			if (!allowed.includes(file.type) || file.size > maxSize) {
 				onImageSelect(null);
+				if (fileInputRef.current) {
+					fileInputRef.current.value = "";
+				}
 				return;
 			}
 			onDrop([file]);
@@ -157,7 +160,7 @@ export default function ImageUploader({ onImageSelect, loading }) {
 
 					{/* Helper Text */}
 					<p className="text-xs text-stone-400">
-						Supports JPG, PNG,JPEG, WEBP • Max 10MB
+						Supports JPG, PNG, JPEG, WEBP • Max 10MB
 					</p>
 				</div>
 			</div>
