@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
 	ArrowLeft,
 	ChefHat,
@@ -22,12 +22,15 @@ export default function PantryRecipesPage() {
 	const {
 		loading,
 		data: recipesData,
+        error,
 		fn: fetchSuggestions,
 	} = useFetch(getRecipesByPantryIngredients);
 
+    const [hasFetched, setHasFetched] = useState(false);
+
 	// Load suggestions on mount
 	useEffect(() => {
-		fetchSuggestions();
+		fetchSuggestions().finally(() => setHasFetched(true));
 	}, []);
 
 	const recipes = recipesData?.recipes || [];
@@ -205,7 +208,7 @@ export default function PantryRecipesPage() {
 					)}
 
 				{/* Rate Limit Reached */}
-				{!loading && recipesData === undefined && (
+				{!loading && hasFetched && error?.message?.includes("limit") && (
 					<div className="bg-linear-to-br from-orange-50 to-amber-50 p-12 text-center border-2 border-orange-200">
 						<div className="bg-orange-100 w-20 h-20 border-2 border-orange-200 flex items-center justify-center mx-auto mb-6">
 							<Sparkles className="w-10 h-10 text-orange-600" />
