@@ -25,6 +25,88 @@ function normalizeTitle(title) {
 		.join(" ");
 }
 
+function maskToken(token) {
+	if (!token) {
+		return "missing";
+	}
+	const tokenString = String(token);
+	const tail = tokenString.slice(-4);
+	return `present(len=${tokenString.length}, tail=${tail})`;
+}
+
+async function parseErrorBody(response) {
+	try {
+		const contentType = response.headers.get("content-type") || "";
+		if (contentType.includes("application/json")) {
+			const json = await response.json();
+			return JSON.stringify(json);
+		}
+		return await response.text();
+	} catch (error) {
+		return `unreadable body: ${error?.message || "unknown error"}`;
+	}
+}
+
+async function throwStrapiResponseError(label, response) {
+	const bodyText = await parseErrorBody(response);
+	const tokenInfo = maskToken(STRAPI_API_TOKEN);
+	const message = `${label} failed: ${response.status} ${response.statusText} | body=${bodyText} | token=${tokenInfo}`;
+	const error = new Error(message);
+	error.name = "StrapiResponseError";
+	throw error;
+}
+
+async function fetchRecipeByTitle(normalizedTitle) {
+	const searchResponse = await fetch(
+		`${STRAPI_URL}/api/recipes?filters[title][$eqi]=${encodeURIComponent(
+			normalizedTitle,
+		)}&populate=*`,
+		{
+			headers: {
+				Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+			},
+			cache: "no-store",
+		},
+	);
+
+	if (!searchResponse.ok) {
+		await throwStrapiResponseError("Strapi searchResponse", searchResponse);
+	}
+
+	const searchData = await searchResponse.json();
+	if (searchData.data && searchData.data.length > 0) {
+		return searchData.data[0];
+	}
+
+	return null;
+}
+
+async function isRecipeSavedForUser(userId, recipeId) {
+	if (!userId || !recipeId) {
+		return false;
+	}
+
+	const savedRecipeResponse = await fetch(
+		`${STRAPI_URL}/api/saved-recipes?filters[user][id][$eq]=${userId}&filters[recipe][id][$eq]=${recipeId}`,
+		{
+			headers: {
+				Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+			},
+			cache: "no-store",
+		},
+	);
+
+	if (!savedRecipeResponse.ok) {
+		await throwStrapiResponseError(
+			"Strapi savedRecipeResponse",
+			savedRecipeResponse,
+		);
+	}
+
+	const savedData = await savedRecipeResponse.json();
+	return savedData.data && savedData.data.length > 0;
+}
+
 // Helper function to fetch image from Unsplash
 async function fetchRecipeImage(recipeName) {
 	try {
@@ -88,54 +170,21 @@ export async function getOrGenerateRecipe(formData) {
 		const isPro = user.subscriptionTier === "pro";
 
 		// Step 1: Check if recipe already exists in DB (case-insensitive search)
-		const searchResponse = await fetch(
-			`${STRAPI_URL}/api/recipes?filters[title][$eqi]=${encodeURIComponent(
-				normalizedTitle,
-			)}&populate=*`,
-			{
-				headers: {
-					Authorization: `Bearer ${STRAPI_API_TOKEN}`,
-				},
-				cache: "no-store",
-			},
-		);
+		const existingRecipe = await fetchRecipeByTitle(normalizedTitle);
+		if (existingRecipe) {
+			console.log("✅ Recipe found in database:", existingRecipe.id);
 
-		if (searchResponse.ok) {
-			const searchData = await searchResponse.json();
+			const isSaved = await isRecipeSavedForUser(user.id, existingRecipe.id);
 
-			if (searchData.data && searchData.data.length > 0) {
-				console.log(
-					"✅ Recipe found in database:",
-					searchData.data[0].id,
-				);
-
-				// Check if user has saved this recipe
-				const savedRecipeResponse = await fetch(
-					`${STRAPI_URL}/api/saved-recipes?filters[user][id][$eq]=${user.id}&filters[recipe][id][$eq]=${searchData.data[0].id}`,
-					{
-						headers: {
-							Authorization: `Bearer ${STRAPI_API_TOKEN}`,
-						},
-						cache: "no-store",
-					},
-				);
-
-				let isSaved = false;
-				if (savedRecipeResponse.ok) {
-					const savedData = await savedRecipeResponse.json();
-					isSaved = savedData.data && savedData.data.length > 0;
-				}
-
-				return {
-					success: true,
-					recipe: searchData.data[0],
-					recipeId: searchData.data[0].id,
-					isSaved: isSaved,
-					fromDatabase: true,
-					isPro,
-					message: "Recipe loaded from database",
-				};
-			}
+			return {
+				success: true,
+				recipe: existingRecipe,
+				recipeId: existingRecipe.id,
+				isSaved,
+				fromDatabase: true,
+				isPro,
+				message: "Recipe loaded from database",
+			};
 		}
 
 		// Step 2: Recipe doesn't exist, generate with Gemini
@@ -319,6 +368,31 @@ Guidelines:
 		});
 
 		if (!createRecipeResponse.ok) {
+			if (createRecipeResponse.status === 409) {
+				console.warn(
+					"⚠️ Recipe already exists, fetching existing record:",
+					normalizedTitle,
+				);
+				const existingRecipe = await fetchRecipeByTitle(normalizedTitle);
+				if (existingRecipe) {
+					const isSaved = await isRecipeSavedForUser(
+						user.id,
+						existingRecipe.id,
+					);
+					return {
+						success: true,
+						recipe: existingRecipe,
+						recipeId: existingRecipe.id,
+						isSaved,
+						fromDatabase: true,
+						isPro,
+						message: "Recipe already existed; loaded from database",
+					};
+				}
+				throw new Error(
+					"Recipe already exists but could not be fetched",
+				);
+			}
 			const errorText = await createRecipeResponse.text();
 			console.error("❌ Failed to save recipe:", errorText);
 			throw new Error("Failed to save recipe to database");
