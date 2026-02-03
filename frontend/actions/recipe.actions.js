@@ -619,7 +619,10 @@ export async function getRecipesByPantryIngredients() {
 			};
 		}
 
-		const ingredients = pantryData.data.map((item) => item.name).join(", ");
+		const ingredients = pantryData.data
+			.map((item) => item.attributes?.name ?? item.name)
+			.filter(Boolean)
+			.join(", ");
 
 		console.log("🥘 Finding recipes for ingredients:", ingredients);
 
@@ -710,9 +713,14 @@ export async function getSavedRecipes() {
 
 		const data = await response.json();
 
-		// Extract recipes from saved-recipes relations
+		// Extract recipes from saved-recipes relations and normalize structure
 		const recipes = data.data
-			.map((savedRecipe) => savedRecipe.recipe)
+			.map((savedRecipe) => {
+				const recipe = savedRecipe.recipe?.attributes 
+					? { id: savedRecipe.recipe.id, ...savedRecipe.recipe.attributes }
+					: savedRecipe.recipe;
+				return recipe;
+			})
 			.filter(Boolean); // Remove any null recipes
 
 		return {
