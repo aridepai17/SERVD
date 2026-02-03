@@ -172,9 +172,13 @@ export async function getOrGenerateRecipe(formData) {
 		// Step 1: Check if recipe already exists in DB (case-insensitive search)
 		const existingRecipe = await fetchRecipeByTitle(normalizedTitle);
 		if (existingRecipe) {
+			const normalizedRecipe = existingRecipe.attributes
+				? { id: existingRecipe.id, ...existingRecipe.attributes }
+				: existingRecipe;
+			const recipeId = normalizedRecipe.id ?? existingRecipe.id;
 			console.log("✅ Recipe found in database:", existingRecipe.id);
 
-			const isSaved = await isRecipeSavedForUser(user.id, existingRecipe.id);
+			const isSaved = await isRecipeSavedForUser(user.id, recipeId);
 
 			return {
 				success: true,
@@ -204,7 +208,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
     "title": "${normalizedTitle}",
     "description": "Brief 2-3 sentence description of the dish",
     "category": "Must be ONE of these EXACT values: breakfast, lunch, dinner, snack, dessert",
-    "cuisine": "Must be ONE of these EXACT values: italian, chinese, mexican, indian, american, thai, japanese, mediterranean, french, korean, vietnamese, spanish, greek, turkish, moroccan, brazilian, caribbean, middle-eastern, british, german, portuguese, other",
+    "cuisine": "Must be ONE of these EXACT values: italian, chinese, mexican, indian, american, thai, japanese, mediterranean, french, korean, vietnamese, spanish, greek, turkish, moroccan, brazilian, caribbean, middle - eastern, british, german, portuguese, other",
     "prepTime": "Time in minutes (number only)",
     "cookTime": "Time in minutes (number only)",
     "servings": "Number of servings (number only)",
@@ -303,22 +307,21 @@ Guidelines:
 			"chinese",
 			"mexican",
 			"indian",
-			"american",
-			"thai",
 			"japanese",
-			"mediterranean",
+			"thai",
 			"french",
-			"korean",
-			"vietnamese",
-			"spanish",
+			"mediterranean",
 			"greek",
-			"turkish",
-			"moroccan",
-			"brazilian",
+			"spanish",
+			"american",
+			"middle - eastern",
+			"vietnamese",
+			"korean",
 			"caribbean",
-			"middle-eastern",
-			"british",
 			"german",
+			"british",
+			"african",
+			"latin-american",
 			"portuguese",
 			"other",
 		];
@@ -373,7 +376,8 @@ Guidelines:
 					"⚠️ Recipe already exists, fetching existing record:",
 					normalizedTitle,
 				);
-				const existingRecipe = await fetchRecipeByTitle(normalizedTitle);
+				const existingRecipe =
+					await fetchRecipeByTitle(normalizedTitle);
 				if (existingRecipe) {
 					const isSaved = await isRecipeSavedForUser(
 						user.id,
