@@ -272,8 +272,8 @@ function RecipeContent() {
 							<div className="flex items-center gap-2">
 								<Clock className="w-5 h-5 text-orange-600" />
 								<span className="font-medium">
-									{parseInt(recipe.prepTime) +
-										parseInt(recipe.cookTime)}{" "}
+									{(parseInt(recipe.prepTime) || 0) +
+										(parseInt(recipe.cookTime) || 0)}{" "}
 									mins total
 								</span>
 							</div>
