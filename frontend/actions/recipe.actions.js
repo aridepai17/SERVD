@@ -195,7 +195,7 @@ export async function getOrGenerateRecipe(formData) {
 		console.log("🤖 Recipe not found, generating with Gemini...");
 
 		const model = genAI.getGenerativeModel({
-			model: "gemini-3-flash-preview",
+			model: "gemini-2.5-flash",
 		});
 
 		const prompt = `
@@ -379,14 +379,20 @@ Guidelines:
 				const existingRecipe =
 					await fetchRecipeByTitle(normalizedTitle);
 				if (existingRecipe) {
+					const normalizedRecipe = existingRecipe.attributes
+						? {
+								id: existingRecipe.id,
+								...existingRecipe.attributes,
+							}
+						: existingRecipe;
 					const isSaved = await isRecipeSavedForUser(
 						user.id,
-						existingRecipe.id,
+						normalizedRecipe.id ?? existingRecipe.id,
 					);
 					return {
 						success: true,
-						recipe: existingRecipe,
-						recipeId: existingRecipe.id,
+						recipe: normalizedRecipe,
+						recipeId: normalizedRecipe.id ?? existingRecipe.id,
 						isSaved,
 						fromDatabase: true,
 						isPro,
@@ -451,7 +457,13 @@ export async function saveRecipeToCollection(formData) {
 			},
 		);
 
-		if (existingResponse.ok) {
+		if (!existingResponse.ok) {
+			await throwStrapiResponseError(
+				"Check existing saved recipe",
+				existingResponse,
+			);
+		}
+		{
 			const existingData = await existingResponse.json();
 			if (existingData.data && existingData.data.length > 0) {
 				return {
@@ -627,7 +639,7 @@ export async function getRecipesByPantryIngredients() {
 		console.log("🥘 Finding recipes for ingredients:", ingredients);
 
 		const model = genAI.getGenerativeModel({
-			model: "gemini-3-flash-preview",
+			model: "gemini-2.5-flash",
 		});
 
 		const prompt = `
@@ -716,8 +728,11 @@ export async function getSavedRecipes() {
 		// Extract recipes from saved-recipes relations and normalize structure
 		const recipes = data.data
 			.map((savedRecipe) => {
-				const recipe = savedRecipe.recipe?.attributes 
-					? { id: savedRecipe.recipe.id, ...savedRecipe.recipe.attributes }
+				const recipe = savedRecipe.recipe?.attributes
+					? {
+							id: savedRecipe.recipe.id,
+							...savedRecipe.recipe.attributes,
+						}
 					: savedRecipe.recipe;
 				return recipe;
 			})
