@@ -607,7 +607,7 @@ export async function getSavedRecipes() {
 		}
 
 		const savedRecipesResponse = await fetch(
-			`${STRAPI_URL}/api/saved-recipes?filters[user][id][$eq]=${user.id}&populate[recipe][populate][0]=ImageUrl&populate[recipe][populate][1]=Image&sort=savedAt:desc`,
+			`${STRAPI_URL}/api/saved-recipes?filters[user][id][$eq]=${user.id}&populate=recipe&sort=savedAt:desc`,
 			{
 				headers: {
 					'Content-Type': 'application/json',
