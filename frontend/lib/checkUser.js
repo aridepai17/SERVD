@@ -39,8 +39,8 @@ export const checkUser = async () => {
 
 		const existingUserData = await existingUserResponse.json();
 
-		if (existingUserData.length > 0) {
-			const existingUser = existingUserData[0];
+		if (existingUserData.data && existingUserData.data.length > 0) {
+			const existingUser = existingUserData.data[0];
 
 			if (existingUser.subscriptionTier !== subscriptionTier) {
 				const updateResponse = await fetch(
@@ -130,7 +130,7 @@ export const checkUser = async () => {
 		}
 
 		const newUser = await newUserResponse.json();
-		return { ...newUser, subscriptionTier };
+		return { ...newUser.data, subscriptionTier };
 	} catch (error) {
 		console.error("Error in checkUser:", error.message);
 		return null;
