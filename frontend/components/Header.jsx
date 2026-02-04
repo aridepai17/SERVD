@@ -7,6 +7,7 @@ import UserDropdown from "./UserDropdown";
 import { checkUser } from "@/lib/checkUser";
 import Image from "next/image";
 import PricingModal from "./PricingModal";
+import HowToCookModal from "./HowToCookModal";
 
 const Header = async () => {
 	const user = await checkUser();
@@ -39,6 +40,8 @@ const Header = async () => {
 					</Link>
 				</div>
 				<div className="flex items-center space-x-4">
+					<HowToCookModal />
+
 					<SignedIn>
 						{user && (
 							<PricingModal
