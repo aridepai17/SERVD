@@ -17,10 +17,17 @@ export const checkUser = async () => {
 		return null;
 	}
 
-    const { has } = await auth();
-    const subscriptionTier = has({ plan: "pro" }) ? "pro" : "free";
+	const { has } = await auth();
+	const subscriptionTier = has({ plan: "pro" }) ? "pro" : "free";
 
 	try {
+		const primaryEmail = user.emailAddresses?.[0]?.emailAddress;
+		if (!primaryEmail) {
+			console.error("User had no email address");
+			return null;
+		}
+
+		// First, try to find user by clerkId
 		const existingUserResponse = await fetch(
 			`${STRAPI_URL}/api/users?filters[clerkId][$eq]=${encodeURIComponent(user.id)}`,
 			{
@@ -69,6 +76,46 @@ export const checkUser = async () => {
 			return { ...existingUser.attributes, ...existingUser, id: existingUser.id, subscriptionTier };
 		}
 
+		// If not found by clerkId, search by email (user might exist with different clerkId)
+		const emailSearchResponse = await fetch(
+			`${STRAPI_URL}/api/users?filters[email][$eq]=${encodeURIComponent(primaryEmail)}`,
+			{
+				headers: {
+					Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+				},
+				cache: "no-store",
+			},
+		);
+
+		if (emailSearchResponse.ok) {
+			const emailSearchData = await emailSearchResponse.json();
+			if (emailSearchData.data && emailSearchData.data.length > 0) {
+				const existingUserByEmail = emailSearchData.data[0];
+				// User exists with same email but different clerkId - update the clerkId
+				console.log("User found by email, updating clerkId...");
+				const updateResponse = await fetch(
+					`${STRAPI_URL}/api/users/${existingUserByEmail.id}`,
+					{
+						method: "PUT",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+						},
+						body: JSON.stringify({ 
+							clerkId: user.id,
+							subscriptionTier,
+						}),
+					},
+				);
+
+				if (updateResponse.ok) {
+					const updatedUser = await updateResponse.json();
+					return { ...updatedUser.data.attributes, ...updatedUser.data, id: updatedUser.data.id, subscriptionTier };
+				}
+			}
+		}
+
+		// User doesn't exist, create new one
 		const rolesResponse = await fetch(
 			`${STRAPI_URL}/api/users-permissions/roles`,
 			{
@@ -96,12 +143,6 @@ export const checkUser = async () => {
 
 		if (!authenticatedRole) {
 			console.error("Authenticated role not found");
-			return null;
-		}
-
-		const primaryEmail = user.emailAddresses?.[0]?.emailAddress;
-		if (!primaryEmail) {
-			console.error("User had no email address");
 			return null;
 		}
 
