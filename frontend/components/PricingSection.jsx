@@ -1,7 +1,6 @@
 import React from "react";
 import { Check } from "lucide-react";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
-import { CheckoutButton } from "@clerk/nextjs/experimental";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -121,19 +120,12 @@ export default function PricingSection({ subscriptionTier = "free" }) {
 
 					<CardFooter>
 						<SignedIn>
-							<CheckoutButton
-								planId="cplan_37y5uChZ9uYauQyTlDkXDh997ht"
-								planPeriod="month"
-								newSubscriptionRedirectUrl="/dashboard"
-								checkoutProps={{
-									appearance: {
-										elements: {
-											drawerRoot: {
-												zIndex: 2000,
-											},
-										},
-									},
-								}}
+							{/* Link to Stripe/Billing portal for subscription */}
+							<a
+								href="https://billing.stripe.com/p/login/test_4ypcMg7"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="w-full block"
 							>
 								<Button
 									disabled={subscriptionTier === "pro"}
@@ -143,7 +135,7 @@ export default function PricingSection({ subscriptionTier = "free" }) {
 										? "Subscribed"
 										: "Subscribe Now"}
 								</Button>
-							</CheckoutButton>
+							</a>
 						</SignedIn>
 						<SignedOut>
 							<SignInButton mode="modal">
