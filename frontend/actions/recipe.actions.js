@@ -333,7 +333,11 @@ Guidelines:
 
 		// Step 3: Fetch image from Unsplash
 		console.log("🖼️ Fetching image from Unsplash...");
-		const imageUrl = await fetchRecipeImage(normalizedTitle);
+		let imageUrl = await fetchRecipeImage(normalizedTitle);
+		if (!imageUrl) {
+			console.log("⚠️ No image found, using placeholder.");
+			imageUrl = "https://placehold.co/1200x600/E97401/FFFFFF/png?text=Recipe";
+		}
 
 		// Step 4: Save generated recipe to database
 		const strapiRecipeData = {
@@ -350,7 +354,7 @@ Guidelines:
 				nutrition: recipeData.nutrition,
 				tips: recipeData.tips,
 				substitutions: recipeData.substitutions,
-				imageUrl: imageUrl || "",
+				ImageUrl: imageUrl,
 				isPublic: true,
 				author: user.id,
 			},
