@@ -572,7 +572,9 @@ export interface ApiRecipeRecipe extends Struct.CollectionTypeSchema {
     servings: Schema.Attribute.Integer;
     substitutions: Schema.Attribute.JSON;
     tips: Schema.Attribute.JSON;
-    title: Schema.Attribute.String & Schema.Attribute.Required;
+    title: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
