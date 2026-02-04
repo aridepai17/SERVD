@@ -7,16 +7,30 @@ import {
 	Font,
 } from "@react-pdf/renderer";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
 Font.register({
 	family: "Inter",
 	fonts: [
 		{
-			src: "https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7W0Q5nw.woff2",
-			fontWeight: "normal",
+			src: `${APP_URL}/fonts/Inter-Regular.ttf`,
+			fontWeight: 400,
+			fontStyle: "normal",
 		},
 		{
-			src: "https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7W0Q5n.woff2",
-			fontWeight: "bold",
+			src: `${APP_URL}/fonts/Inter-Italic.ttf`,
+			fontWeight: 400,
+			fontStyle: "italic",
+		},
+		{
+			src: `${APP_URL}/fonts/Inter-Bold.ttf`,
+			fontWeight: 700,
+			fontStyle: "normal",
+		},
+		{
+			src: `${APP_URL}/fonts/Inter-BoldItalic.ttf`,
+			fontWeight: 700,
+			fontStyle: "italic",
 		},
 	],
 });
@@ -185,8 +199,13 @@ export function RecipePDF({ recipe }) {
 										{step.title}
 									</Text>
 								</Text>
+								{step.description && (
+									<Text style={styles.stepDescription}>
+										{step.description}
+									</Text>
+								)}
 								<Text style={{ marginLeft: 16 }}>
-									{step.instructions}
+									{step.instruction}
 								</Text>
 							</View>
 						))
