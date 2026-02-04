@@ -28,7 +28,7 @@ export default function HowToCookModal() {
 		}
 
 		router.push(`/recipe?cook=${encodeURIComponent(recipeName.trim())}`);
-		handleOpenChange();
+		handleOpenChange(false);
 	};
 
 	const handleOpenChange = (open) => {
@@ -71,7 +71,7 @@ export default function HowToCookModal() {
 								value={recipeName}
 								onChange={(e) => setRecipeName(e.target.value)}
 								placeholder="e.g., Chicken Biryani, Chocolate Cake, Pasta Carbonara"
-								className="w-full px-4 py-3 pr-12 border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-stone-900 placeholder:text-stone-400"
+								className="w-full px-4 py-3 pr-12 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-stone-900 placeholder:text-stone-400"
 								autoFocus
 							/>
 							<Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
