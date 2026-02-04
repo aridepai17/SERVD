@@ -607,12 +607,13 @@ export async function getSavedRecipes() {
 		}
 
 		const savedRecipesResponse = await fetch(
-			`${STRAPI_URL}/api/saved-recipes?filters[user][id][$eq]=${user.id}&populate=recipe.ImageUrl,recipe.Image&sort=savedAt:desc`,
+			`${STRAPI_URL}/api/saved-recipes?filters[user][id][$eq]=${user.id}&populate[recipe][populate][0]=ImageUrl&populate[recipe][populate][1]=Image&sort=savedAt:desc`,
 			{
 				headers: {
-				Authorization: `Bearer ${STRAPI_API_TOKEN}`,
-			},
-			cache: "no-store",
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+				},
+				cache: "no-store",
 			},
 		);
 
