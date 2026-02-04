@@ -110,7 +110,7 @@ export const checkUser = async () => {
 			clerkId: user.id,
 			firstName: user.firstName || "",
 			lastName: user.lastName || "",
-			imageUrl: user.imageUrl || "",
+			ImageUrl: user.imageUrl || "",
 			subscriptionTier,
 		};
 
