@@ -8,6 +8,7 @@ import {
 } from "@react-pdf/renderer";
 
 Font.register({
+	family: "Inter",
 	fonts: [
 		{
 			src: "https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7W0Q5nw.woff2",
@@ -32,14 +33,14 @@ const styles = StyleSheet.create({
 		marginBottom: 8,
 		fontWeight: "bold",
 		textAlign: "center",
-		color: "gray-800",
+		color: "#1f2937",
 	},
 	description: {
 		fontSize: 12,
 		fontStyle: "italic",
 		textAlign: "center",
 		marginBottom: 24,
-		color: "gray-600",
+		color: "#4b5563",
 	},
 	section: {
 		marginBottom: 20,
@@ -48,16 +49,16 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		marginBottom: 8,
 		fontWeight: "bold",
-		color: "orange-600 accent",
+		color: "#ea580c",
 		borderBottomWidth: 1,
-		borderBottomColor: "orange-200",
+		borderBottomColor: "#fed7aa",
 		paddingBottom: 4,
 	},
 	metaRow: {
 		flexDirection: "row",
 		justifyContent: "space-between",
 		marginBottom: 6,
-		color: "gray-700",
+		color: "#374151",
 	},
 	listItem: {
 		marginBottom: 4,
@@ -66,7 +67,7 @@ const styles = StyleSheet.create({
 	},
 	bullet: {
 		width: 12,
-		color: "orange-600 accent",
+		color: "#ea580c",
 	},
 	instructionStep: {
 		marginBottom: 10,
@@ -81,7 +82,7 @@ const styles = StyleSheet.create({
 	},
 	divider: {
 		height: 1,
-		backgroundColor: "gray-200",
+		backgroundColor: "#e5e7eb",
 		marginVertical: 16,
 	},
 	text: {
@@ -94,7 +95,10 @@ const styles = StyleSheet.create({
 		right: 40,
 		textAlign: "center",
 		fontSize: 9,
-		color: "gray-400",
+		color: "#9ca3af",
+	},
+	metaLabel: {
+		fontWeight: "bold",
 	},
 });
 
