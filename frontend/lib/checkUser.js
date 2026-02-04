@@ -41,8 +41,10 @@ export const checkUser = async () => {
 
 		if (existingUserData.data && existingUserData.data.length > 0) {
 			const existingUser = existingUserData.data[0];
+			// Access subscriptionTier from attributes (Strapi v4)
+			const existingTier = existingUser.attributes?.subscriptionTier || existingUser.subscriptionTier;
 
-			if (existingUser.subscriptionTier !== subscriptionTier) {
+			if (existingTier !== subscriptionTier) {
 				const updateResponse = await fetch(
 					`${STRAPI_URL}/api/users/${existingUser.id}`,
 					{
@@ -59,11 +61,12 @@ export const checkUser = async () => {
 						"Failed to update subscription tier:",
 						await updateResponse.text(),
 					);
-					return existingUser;
+					return { ...existingUser.attributes, ...existingUser, id: existingUser.id, subscriptionTier };
 				}
 			}
 
-			return { ...existingUser, subscriptionTier };
+			// Return user with attributes merged (Strapi v4 format)
+			return { ...existingUser.attributes, ...existingUser, id: existingUser.id, subscriptionTier };
 		}
 
 		const rolesResponse = await fetch(
@@ -81,11 +84,13 @@ export const checkUser = async () => {
 		}
 
 		const rolesData = await rolesResponse.json();
-		if (!rolesData.roles) {
-			console.error("Unexpected roles response structure");
+		// Strapi v4 wraps roles in a data property
+		const roles = rolesData.data || rolesData.roles || [];
+		if (!roles || roles.length === 0) {
+			console.error("No roles found in response");
 			return null;
 		}
-		const authenticatedRole = rolesData.roles.find(
+		const authenticatedRole = roles.find(
 			(role) => role.type === "authenticated",
 		);
 
