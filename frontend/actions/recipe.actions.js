@@ -657,3 +657,104 @@ export async function getSavedRecipes() {
 		throw new Error(error.message || "Failed to fetch saved recipes");
 	}
 }
+
+// Get recipe suggestions based on pantry ingredients
+export async function getRecipesByPantryIngredients() {
+	try {
+		const user = await checkUser();
+		if (!user) {
+			throw new Error("User not authenticated");
+		}
+
+		// Get user's pantry items
+		const pantryResponse = await fetch(
+			`${STRAPI_URL}/api/pantry-items?filters[owner][id][$eq]=${user.id}`,
+			{
+				headers: {
+				Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+			},
+				cache: "no-store",
+			},
+		);
+
+		if (!pantryResponse.ok) {
+			throw new Error("Failed to fetch pantry items");
+		}
+
+		const pantryData = await pantryResponse.json();
+		const pantryItems = pantryData.data || [];
+
+		if (pantryItems.length === 0) {
+			return {
+				success: false,
+				message: "Your pantry is empty. Add ingredients first!",
+			};
+		}
+
+		// Extract ingredient names
+		const ingredients = pantryItems.map(
+			(item) => `${item.attributes?.name} (${item.attributes?.quantity})`,
+		);
+		const ingredientsUsed = ingredients.join(", ");
+
+		// Check if user is Pro for recommendations limit
+		const isPro = user.subscriptionTier === "pro";
+
+		// Generate recipe suggestions using Gemini
+		const model = genAI.getGenerativeModel({
+			model: "gemini-2.5-flash",
+		});
+
+		const prompt = `
+You are a professional chef and recipe expert. Based on these pantry ingredients: ${ingredientsUsed}
+
+Generate 3-5 recipe suggestions that can be made with these ingredients.
+
+Return ONLY a valid JSON array with this exact structure (no markdown, no explanations):
+[
+    {
+        "title": "Recipe Name",
+        "description": "Brief 2-3 sentence description",
+        "category": "breakfast|lunch|dinner|snack|dessert",
+        "cuisine": "italian|chinese|mexican|indian|american|thai|japanese|mediterranean|french|other",
+        "matchPercentage": 85,
+        "matchedIngredients": ["ingredient1", "ingredient2"],
+        "missingIngredients": ["ingredient3"]
+    }
+]
+
+Rules:
+- Prioritize recipes that use most of the available ingredients
+- If some ingredients are missing, suggest simple substitutions or note them
+- Keep match percentage realistic (60-100)
+- Return 3-5 recipes max
+`;
+
+		const result = await model.generateContent(prompt);
+		const response = await result.response;
+		const text = response.text();
+
+		// Parse JSON response
+		let recipes;
+		try {
+			const cleanText = text
+				.replace(/```json\n?/g, "")
+				.replace(/```\n?/g, "")
+				.trim();
+			recipes = JSON.parse(cleanText);
+		} catch (parseError) {
+			console.error("Failed to parse Gemini response:", text);
+			throw new Error("Failed to generate recipe suggestions");
+		}
+
+		return {
+			success: true,
+			recipes,
+			ingredientsUsed,
+			recommendationsLimit: isPro ? "unlimited" : 5,
+		};
+	} catch (error) {
+		console.error("❌ Error in getRecipesByPantryIngredients:", error);
+		throw new Error(error.message || "Failed to get recipe suggestions");
+	}
+}
