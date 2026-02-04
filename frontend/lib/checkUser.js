@@ -49,12 +49,24 @@ export const checkUser = async () => {
 		}
 
 		const existingUserData = await existingUserResponse.json();
-		console.log("clerkId search result:", JSON.stringify(existingUserData).substring(0, 200));
+		console.log("clerkId search result:", JSON.stringify(existingUserData).substring(0, 500));
 
+		let existingUser = null;
+		
 		if (existingUserData.data && existingUserData.data.length > 0) {
-			const existingUser = existingUserData.data[0];
-			console.log("Found user by clerkId:", existingUser.id);
-			
+			const foundUser = existingUserData.data[0];
+			// Check if clerkId matches exactly (handle truncated clerkId)
+			const storedClerkId = foundUser.clerkId;
+			if (storedClerkId === user.id) {
+				existingUser = foundUser;
+				console.log("Found user by clerkId (exact match):", existingUser.id);
+			} else {
+				console.log("clerkId mismatch - stored:", storedClerkId, "current:", user.id);
+				// ClerkId doesn't match exactly - might be truncated or wrong, search by email
+			}
+		}
+
+		if (existingUser) {
 			// Access subscriptionTier from attributes (Strapi v4)
 			const existingTier = existingUser.attributes?.subscriptionTier || existingUser.subscriptionTier;
 			console.log("Existing tier:", existingTier, "New tier:", subscriptionTier);
@@ -81,7 +93,7 @@ export const checkUser = async () => {
 			return { ...existingUser.attributes, ...existingUser, id: existingUser.id, subscriptionTier };
 		}
 
-		console.log("User not found by clerkId, searching by email (case-insensitive)...");
+		console.log("User not found by clerkId (or mismatch), searching by email (case-insensitive)...");
 
 		// If not found by clerkId, search by email (case-insensitive)
 		const emailUrl = `${STRAPI_URL}/api/users?filters[email][$eqi]=${encodeURIComponent(primaryEmail)}`;
@@ -100,17 +112,17 @@ export const checkUser = async () => {
 			console.error("Email search failed:", await emailSearchResponse.text());
 		} else {
 			const emailSearchData = await emailSearchResponse.json();
-			console.log("email search result:", JSON.stringify(emailSearchData).substring(0, 200));
+			console.log("email search result:", JSON.stringify(emailSearchData).substring(0, 500));
 			
 			if (emailSearchData.data && emailSearchData.data.length > 0) {
-				const existingUserByEmail = emailSearchData.data[0];
-				console.log("Found user by email:", existingUserByEmail.id, "clerkId:", existingUserByEmail.clerkId);
+				const userByEmail = emailSearchData.data[0];
+				console.log("Found user by email:", userByEmail.id, "clerkId:", userByEmail.clerkId);
 				
-				// User exists with same email - try to update the clerkId
-				console.log("Updating clerkId for existing user...");
+				// User exists with same email - update the clerkId
+				console.log("Updating clerkId for existing user from", userByEmail.clerkId, "to", user.id);
 				
 				const updateResponse = await fetch(
-					`${STRAPI_URL}/api/users/${existingUserByEmail.id}`,
+					`${STRAPI_URL}/api/users/${userByEmail.id}`,
 					{
 						method: "PUT",
 						headers: {
@@ -134,7 +146,7 @@ export const checkUser = async () => {
 					const errorText = await updateResponse.text();
 					console.error("Failed to update clerkId:", errorText);
 					// If update fails, return the existing user anyway
-					return { ...existingUserByEmail.attributes, ...existingUserByEmail, id: existingUserByEmail.id, subscriptionTier };
+					return { ...userByEmail.attributes, ...userByEmail, id: userByEmail.id, subscriptionTier };
 				}
 			}
 		}
