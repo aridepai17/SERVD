@@ -50,11 +50,13 @@ export default function HowToCookModal() {
 			<DialogContent className="max-w-lg">
 				<DialogHeader>
 					<DialogTitle className="text-2xl font-serif font-bold flex items-center gap-2">
-						<DialogDescription>
-							Enter any recipe name and our AI chef will guide you
-							through the cooking process.
-						</DialogDescription>
-					</DialogTitle>
+                        <ChefHat className="w-6 h-6 text-orange-600" />
+                        How to Cook?
+                    </DialogTitle>
+					<DialogDescription>
+						Enter any recipe name and our AI chef will guide you
+						through the cooking process.
+					</DialogDescription>
 				</DialogHeader>
 
 				<form onSubmit={handleSubmit}>
