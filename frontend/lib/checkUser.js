@@ -8,7 +8,7 @@ export const checkUser = async () => {
 	const user = await currentUser();
 
 	if (!user) {
-		console.log("No User found");
+		console.log("No User found in Clerk");
 		return null;
 	}
 
@@ -22,34 +22,42 @@ export const checkUser = async () => {
 
 	try {
 		const primaryEmail = user.emailAddresses?.[0]?.emailAddress;
+		console.log("checkUser called:", { clerkId: user.id, email: primaryEmail, tier: subscriptionTier });
+		
 		if (!primaryEmail) {
 			console.error("User had no email address");
 			return null;
 		}
 
 		// First, try to find user by clerkId
-		const existingUserResponse = await fetch(
-			`${STRAPI_URL}/api/users?filters[clerkId][$eq]=${encodeURIComponent(user.id)}`,
-			{
-				headers: {
-					Authorization: `Bearer ${STRAPI_API_TOKEN}`,
-				},
-				cache: "no-store",
+		const clerkIdUrl = `${STRAPI_URL}/api/users?filters[clerkId][$eq]=${encodeURIComponent(user.id)}`;
+		console.log("Searching by clerkId:", clerkIdUrl);
+		
+		const existingUserResponse = await fetch(clerkIdUrl, {
+			headers: {
+				Authorization: `Bearer ${STRAPI_API_TOKEN}`,
 			},
-		);
+			cache: "no-store",
+		});
+
+		console.log("clerkId search response status:", existingUserResponse.status);
 
 		if (!existingUserResponse.ok) {
 			const errorText = await existingUserResponse.text();
-			console.error("Strapi error response:", errorText);
+			console.error("Strapi clerkId search error:", errorText);
 			return null;
 		}
 
 		const existingUserData = await existingUserResponse.json();
+		console.log("clerkId search result:", JSON.stringify(existingUserData).substring(0, 200));
 
 		if (existingUserData.data && existingUserData.data.length > 0) {
 			const existingUser = existingUserData.data[0];
+			console.log("Found user by clerkId:", existingUser.id);
+			
 			// Access subscriptionTier from attributes (Strapi v4)
 			const existingTier = existingUser.attributes?.subscriptionTier || existingUser.subscriptionTier;
+			console.log("Existing tier:", existingTier, "New tier:", subscriptionTier);
 
 			if (existingTier !== subscriptionTier) {
 				const updateResponse = await fetch(
@@ -64,10 +72,7 @@ export const checkUser = async () => {
 					},
 				);
 				if (!updateResponse.ok) {
-					console.error(
-						"Failed to update subscription tier:",
-						await updateResponse.text(),
-					);
+					console.error("Failed to update subscription tier:", await updateResponse.text());
 					return { ...existingUser.attributes, ...existingUser, id: existingUser.id, subscriptionTier };
 				}
 			}
@@ -76,24 +81,33 @@ export const checkUser = async () => {
 			return { ...existingUser.attributes, ...existingUser, id: existingUser.id, subscriptionTier };
 		}
 
-		// If not found by clerkId, search by email (user might exist with different clerkId)
-		const emailSearchResponse = await fetch(
-			`${STRAPI_URL}/api/users?filters[email][$eq]=${encodeURIComponent(primaryEmail)}`,
-			{
-				headers: {
-					Authorization: `Bearer ${STRAPI_API_TOKEN}`,
-				},
-				cache: "no-store",
-			},
-		);
+		console.log("User not found by clerkId, searching by email (case-insensitive)...");
 
-		if (emailSearchResponse.ok) {
+		// If not found by clerkId, search by email (case-insensitive)
+		const emailUrl = `${STRAPI_URL}/api/users?filters[email][$eqi]=${encodeURIComponent(primaryEmail)}`;
+		console.log("Searching by email:", emailUrl);
+		
+		const emailSearchResponse = await fetch(emailUrl, {
+			headers: {
+				Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+			},
+			cache: "no-store",
+		});
+
+		console.log("email search response status:", emailSearchResponse.status);
+
+		if (!emailSearchResponse.ok) {
+			console.error("Email search failed:", await emailSearchResponse.text());
+		} else {
 			const emailSearchData = await emailSearchResponse.json();
+			console.log("email search result:", JSON.stringify(emailSearchData).substring(0, 200));
+			
 			if (emailSearchData.data && emailSearchData.data.length > 0) {
 				const existingUserByEmail = emailSearchData.data[0];
+				console.log("Found user by email:", existingUserByEmail.id, "clerkId:", existingUserByEmail.clerkId);
 				
-				// User exists with same email but different clerkId - try to update the clerkId
-				console.log("User found by email, attempting to update clerkId...");
+				// User exists with same email - try to update the clerkId
+				console.log("Updating clerkId for existing user...");
 				
 				const updateResponse = await fetch(
 					`${STRAPI_URL}/api/users/${existingUserByEmail.id}`,
@@ -110,18 +124,22 @@ export const checkUser = async () => {
 					},
 				);
 
+				console.log("update response status:", updateResponse.status);
+
 				if (updateResponse.ok) {
 					const updatedUser = await updateResponse.json();
-					console.log("Successfully updated clerkId for existing user");
+					console.log("Successfully updated clerkId");
 					return { ...updatedUser.data.attributes, ...updatedUser.data, id: updatedUser.data.id, subscriptionTier };
 				} else {
 					const errorText = await updateResponse.text();
 					console.error("Failed to update clerkId:", errorText);
-					// If update fails, return the existing user anyway so they can proceed
+					// If update fails, return the existing user anyway
 					return { ...existingUserByEmail.attributes, ...existingUserByEmail, id: existingUserByEmail.id, subscriptionTier };
 				}
 			}
 		}
+
+		console.log("User not found by email either, creating new user...");
 
 		// User doesn't exist, create new one
 		const rolesResponse = await fetch(
@@ -132,6 +150,8 @@ export const checkUser = async () => {
 				},
 			},
 		);
+
+		console.log("roles response status:", rolesResponse.status);
 
 		if (!rolesResponse.ok) {
 			console.error("Failed to fetch roles:", await rolesResponse.text());
@@ -168,6 +188,8 @@ export const checkUser = async () => {
 			subscriptionTier,
 		};
 
+		console.log("Creating new user with email:", primaryEmail);
+
 		const newUserResponse = await fetch(`${STRAPI_URL}/api/users`, {
 			method: "POST",
 			headers: {
@@ -184,9 +206,10 @@ export const checkUser = async () => {
 		}
 
 		const newUser = await newUserResponse.json();
+		console.log("New user created:", newUser.data?.id);
 		return { ...newUser.data, subscriptionTier };
 	} catch (error) {
-		console.error("Error in checkUser:", error.message);
+		console.error("Error in checkUser:", error.message, error.stack);
 		return null;
 	}
 };
