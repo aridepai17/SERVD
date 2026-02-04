@@ -91,8 +91,10 @@ export const checkUser = async () => {
 			const emailSearchData = await emailSearchResponse.json();
 			if (emailSearchData.data && emailSearchData.data.length > 0) {
 				const existingUserByEmail = emailSearchData.data[0];
-				// User exists with same email but different clerkId - update the clerkId
-				console.log("User found by email, updating clerkId...");
+				
+				// User exists with same email but different clerkId - try to update the clerkId
+				console.log("User found by email, attempting to update clerkId...");
+				
 				const updateResponse = await fetch(
 					`${STRAPI_URL}/api/users/${existingUserByEmail.id}`,
 					{
@@ -110,7 +112,13 @@ export const checkUser = async () => {
 
 				if (updateResponse.ok) {
 					const updatedUser = await updateResponse.json();
+					console.log("Successfully updated clerkId for existing user");
 					return { ...updatedUser.data.attributes, ...updatedUser.data, id: updatedUser.data.id, subscriptionTier };
+				} else {
+					const errorText = await updateResponse.text();
+					console.error("Failed to update clerkId:", errorText);
+					// If update fails, return the existing user anyway so they can proceed
+					return { ...existingUserByEmail.attributes, ...existingUserByEmail, id: existingUserByEmail.id, subscriptionTier };
 				}
 			}
 		}
