@@ -1,15 +1,43 @@
 import { NextResponse } from "next/server";
-import Razorpay from "razorpay";
 import { currentUser } from "@clerk/nextjs/server";
 
 const STRAPI_URL =
 	process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 
-const razorpay = new Razorpay({
-	key_id: process.env.RAZORPAY_KEY_ID,
-	key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+const RAZORPAY_PLAN_ID = process.env.RAZORPAY_PLAN_ID;
+
+const RAZORPAY_API_BASE = "https://api.razorpay.com/v1";
+
+async function razorpayFetch(endpoint, method = "GET", body = null) {
+	const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
+
+	const options = {
+		method,
+		headers: {
+			Authorization: `Basic ${auth}`,
+			"Content-Type": "application/json",
+		},
+	};
+
+	if (body) {
+		options.body = JSON.stringify(body);
+	}
+
+	const response = await fetch(`${RAZORPAY_API_BASE}${endpoint}`, options);
+	const data = await response.json();
+
+	if (!response.ok) {
+		throw {
+			statusCode: response.status,
+			error: data,
+		};
+	}
+
+	return data;
+}
 
 export async function POST(req) {
 	try {
@@ -27,6 +55,9 @@ export async function POST(req) {
 			firstName: user.firstName || "",
 			lastName: user.lastName || "",
 		};
+
+		console.log("Processing subscription for user:", user.id);
+		console.log("Email:", email);
 
 		// Check if customer already exists in Strapi
 		let customerId = null;
@@ -63,23 +94,18 @@ export async function POST(req) {
 			customerId = existingUser.razorpayCustomerId;
 			console.log("Using existing Razorpay customer ID:", customerId);
 		} else {
-			// Create customer in Razorpay
+			// Create customer in Razorpay using direct API
 			console.log("Creating new Razorpay customer...");
 			try {
-				const customer = await razorpay.customers.create({
-					name: `${firstName} ${lastName}`.trim(),
+				const customer = await razorpayFetch("/customers", "POST", {
+					name: `${firstName} ${lastName}`.trim() || "Customer",
 					email,
 					notes: { clerkId: user.id },
 				});
 				customerId = customer.id;
 				console.log("Customer created:", customerId);
-			} catch (customerError) {
-				console.error("Customer creation failed:", customerError);
-				throw customerError;
-			}
 
-			// Save customer ID to Strapi
-			if (existingUser) {
+				// Save customer ID to Strapi
 				await fetch(`${STRAPI_URL}/api/users/${existingUser.id}`, {
 					method: "PUT",
 					headers: {
@@ -90,31 +116,41 @@ export async function POST(req) {
 						razorpayCustomerId: customerId,
 					}),
 				});
+			} catch (customerError) {
+				console.error("Customer creation failed:", customerError);
+				return NextResponse.json(
+					{
+						error: customerError.error?.description || "Failed to create Razorpay customer",
+						details: customerError.error,
+					},
+					{ status: customerError.statusCode || 500 },
+				);
 			}
 		}
 
-		// Create subscription
-		const PLAN_ID = process.env.RAZORPAY_PLAN_ID;
-		console.log("Using plan ID:", PLAN_ID);
-
-		if (!PLAN_ID || PLAN_ID === "plan_YOUR_PLAN_ID") {
+		// Validate plan ID
+		if (!RAZORPAY_PLAN_ID || RAZORPAY_PLAN_ID === "plan_YOUR_PLAN_ID") {
 			return NextResponse.json(
-				{ error: "Invalid Razorpay plan ID. Please configure RAZORPAY_PLAN_ID in environment variables." },
+				{ error: "Invalid Razorpay plan ID" },
 				{ status: 400 },
 			);
 		}
 
 		console.log("Creating subscription for customer:", customerId);
-		const subscription = await razorpay.subscriptions.create({
+
+		// Create subscription
+		const subscription = await razorpayFetch("/subscriptions", "POST", {
 			customer_id: customerId,
-			plan_id: PLAN_ID,
-			total_count: 1,
+			plan_id: RAZORPAY_PLAN_ID,
+			total_count: 12, // 12 months
 			quantity: 1,
 			customer_notify: 1,
 			notify_info: {
 				email,
 			},
 		});
+
+		console.log("Subscription created:", subscription.id);
 
 		if (!subscription.short_url) {
 			return NextResponse.json(
@@ -130,13 +166,9 @@ export async function POST(req) {
 		});
 	} catch (error) {
 		console.error("Subscription creation error:", error);
-		// Log more details for debugging
-		if (error.error) {
-			console.error("Razorpay error details:", JSON.stringify(error.error, null, 2));
-		}
 		return NextResponse.json(
 			{
-				error: error.message || error.error?.description || "Failed to create subscription",
+				error: error.error?.description || error.message || "Failed to create subscription",
 				details: error.error || null,
 			},
 			{ status: error.statusCode || 500 },
