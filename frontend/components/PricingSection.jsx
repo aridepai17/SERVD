@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import { Check } from "lucide-react";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
@@ -13,12 +15,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export default function PricingSection({ subscriptionTier = "free" }) {
 	// INR pricing - ₹399 (marketing pricing)
 	const PRO_PRICE_INR = 399;
 	const [isLoading, setIsLoading] = useState(false);
 	const { user } = useUser();
+    const router = useRouter();
 
 	const handleSubscribe = async () => {
 		if (!user) return;
@@ -62,8 +66,7 @@ export default function PricingSection({ subscriptionTier = "free" }) {
 
 			if (data.success) {
 				toast.success("Subscription cancelled successfully");
-				// Force reload to update UI
-				window.location.reload();
+				router.refresh();
 			} else {
 				toast.error(data.error || "Failed to cancel subscription");
 			}
