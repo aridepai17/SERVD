@@ -52,6 +52,7 @@ export const checkUser = async () => {
 
 		// Search by email (case-insensitive)
 		const emailUrl = `${STRAPI_URL}/api/users?filters[email][$eqi]=${encodeURIComponent(primaryEmail)}`;
+		console.log("Searching for user by email:", primaryEmail, "URL:", emailUrl);
 		const emailResponse = await fetch(emailUrl, {
 			headers: { Authorization: `Bearer ${STRAPI_API_TOKEN}` },
 			cache: "no-store",
@@ -59,6 +60,7 @@ export const checkUser = async () => {
 
 		if (emailResponse.ok) {
 			const emailData = await emailResponse.json();
+			console.log("Email search result:", emailData);
 			if (emailData.data && emailData.data.length > 0) {
 				const userByEmail = emailData.data[0];
 				console.log("Found by email:", userByEmail.id, "updating clerkId...");
@@ -82,6 +84,9 @@ export const checkUser = async () => {
 					return { ...userByEmail.attributes, ...userByEmail, id: userByEmail.id, subscriptionTier };
 				}
 			}
+			console.log("No user found by email, proceeding to create...");
+		} else {
+			console.error("Email search failed:", emailResponse.status, emailResponse.statusText);
 		}
 
 		// Get authenticated role
