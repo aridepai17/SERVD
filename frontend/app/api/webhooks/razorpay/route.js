@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 
-const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
+const STRAPI_URL =
+	process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 
@@ -10,15 +11,30 @@ export async function POST(req) {
 		const body = await req.text();
 		const signature = req.headers.get("x-razorpay-signature");
 
+		if (!signature || !RAZORPAY_WEBHOOK_SECRET) {
+			return NextResponse.json(
+				{ error: "Webhook not configured" },
+				{ status: 500 },
+			);
+		}
+
 		// Verify webhook signature
 		const expectedSignature = crypto
 			.createHmac("sha256", RAZORPAY_WEBHOOK_SECRET)
 			.update(body)
 			.digest("hex");
 
-		if (signature !== expectedSignature) {
+		const sigBuf = Buffer.from(signature, "utf8");
+		const expBuf = Buffer.from(expectedSignature, "utf8");
+		if (
+			sigBuf.length !== expBuf.length ||
+			!crypto.timingSafeEqual(sigBuf, expBuf)
+		) {
 			console.error("Invalid webhook signature");
-			return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+			return NextResponse.json(
+				{ error: "Invalid signature" },
+				{ status: 400 },
+			);
 		}
 
 		const event = JSON.parse(body);
@@ -28,34 +44,50 @@ export async function POST(req) {
 		switch (event.event) {
 			case "payment.authorized":
 			case "payment.captured":
-				await handlePaymentSuccess(event.payload.payment);
+				await handlePaymentSuccess(event.payload.payment?.entity);
 				break;
 			case "payment.failed":
-				await handlePaymentFailed(event.payload.payment);
+				await handlePaymentFailed(event.payload.payment?.entity);
 				break;
 			case "subscription.authenticated":
-				await handleSubscriptionAuthenticated(event.payload.subscription);
+				await handleSubscriptionAuthenticated(
+					event.payload.subscription?.entity,
+				);
 				break;
 			case "subscription.activated":
-				await handleSubscriptionActivated(event.payload.subscription);
+				await handleSubscriptionActivated(
+					event.payload.subscription?.entity,
+				);
 				break;
 			case "subscription.paused":
-				await handleSubscriptionPaused(event.payload.subscription);
+				await handleSubscriptionPaused(
+					event.payload.subscription?.entity,
+				);
 				break;
 			case "subscription.resumed":
-				await handleSubscriptionResumed(event.payload.subscription);
+				await handleSubscriptionResumed(
+					event.payload.subscription?.entity,
+				);
 				break;
 			case "subscription.charged":
-				await handleSubscriptionCharged(event.payload.subscription);
+				await handleSubscriptionCharged(
+					event.payload.subscription?.entity,
+				);
 				break;
 			case "subscription.cancelled":
-				await handleSubscriptionCancelled(event.payload.subscription);
+				await handleSubscriptionCancelled(
+					event.payload.subscription?.entity,
+				);
 				break;
 			case "subscription.completed":
-				await handleSubscriptionCompleted(event.payload.subscription);
+				await handleSubscriptionCompleted(
+					event.payload.subscription?.entity,
+				);
 				break;
 			case "subscription.updated":
-				await handleSubscriptionUpdated(event.payload.subscription);
+				await handleSubscriptionUpdated(
+					event.payload.subscription?.entity,
+				);
 				break;
 			default:
 				console.log("Unhandled event:", event.event);
@@ -75,11 +107,11 @@ async function findUserByCustomerId(customerId) {
 			headers: {
 				Authorization: `Bearer ${STRAPI_API_TOKEN}`,
 			},
-		}
+		},
 	);
 
 	const data = await response.json();
-	const users = Array.isArray(data) ? data : (data.data || []);
+	const users = Array.isArray(data) ? data : data.data || [];
 	return users[0] || null;
 }
 
@@ -90,18 +122,18 @@ async function findUserBySubscriptionId(subscriptionId) {
 			headers: {
 				Authorization: `Bearer ${STRAPI_API_TOKEN}`,
 			},
-		}
+		},
 	);
 
 	const data = await response.json();
-	const users = Array.isArray(data) ? data : (data.data || []);
+	const users = Array.isArray(data) ? data : data.data || [];
 	return users[0] || null;
 }
 
 async function updateUserSubscription(user, updates) {
 	if (!user) return;
 
-	await fetch(`${STRAPI_URL}/api/users/${user.id}`, {
+	const response = await fetch(`${STRAPI_URL}/api/users/${user.id}`, {
 		method: "PUT",
 		headers: {
 			"Content-Type": "application/json",
@@ -109,6 +141,11 @@ async function updateUserSubscription(user, updates) {
 		},
 		body: JSON.stringify(updates),
 	});
+
+	if (!response.ok) {
+		const body = await response.text();
+		throw new Error(`Strapi update failed: ${response.status} ${body}`);
+	}
 }
 
 async function handlePaymentSuccess(payment) {
