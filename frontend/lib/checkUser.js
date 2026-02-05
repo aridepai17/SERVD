@@ -129,7 +129,7 @@ export const checkUser = async () => {
 		if (!createResponse.ok) {
 			const err = await createResponse.text();
 			console.error("Create failed:", err);
-			// Last resort: try to fetch user by email and return
+			// Try one more time to fetch user by email (they might already exist)
 			const fallbackResponse = await fetch(emailUrl, {
 				headers: { Authorization: `Bearer ${STRAPI_API_TOKEN}` },
 			});
@@ -137,8 +137,29 @@ export const checkUser = async () => {
 				const fallbackData = await fallbackResponse.json();
 				if (fallbackData.data && fallbackData.data.length > 0) {
 					const fallbackUser = fallbackData.data[0];
-					console.log("Fallback: returning existing user");
+					console.log("Found existing user on fallback, returning:", fallbackUser.id);
+					// Update their clerkId
+					await fetch(
+						`${STRAPI_URL}/api/users/${fallbackUser.id}`,
+						{
+							method: "PUT",
+							headers: { "Content-Type": "application/json", Authorization: `Bearer ${STRAPI_API_TOKEN}` },
+							body: JSON.stringify({ clerkId: user.id, subscriptionTier }),
+						},
+					);
 					return { ...fallbackUser.attributes, ...fallbackUser, id: fallbackUser.id, subscriptionTier };
+				}
+			}
+			// User exists in Clerk but not properly linked - try to get by clerkId again
+			const retryClerkIdResponse = await fetch(clerkIdUrl, {
+				headers: { Authorization: `Bearer ${STRAPI_API_TOKEN}` },
+			});
+			if (retryClerkIdResponse.ok) {
+				const retryData = await retryClerkIdResponse.json();
+				if (retryData.data && retryData.data.length > 0) {
+					const retryUser = retryData.data[0];
+					console.log("Found on retry by clerkId:", retryUser.id);
+					return { ...retryUser.attributes, ...retryUser, id: retryUser.id, subscriptionTier };
 				}
 			}
 			return null;
