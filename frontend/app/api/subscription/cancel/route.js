@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import { currentUser } from "@clerk/nextjs/server";
 
-const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
+const STRAPI_URL =
+	process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 
 const razorpay = new Razorpay({
@@ -15,7 +16,10 @@ export async function POST(req) {
 		const user = await currentUser();
 
 		if (!user) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+			return NextResponse.json(
+				{ error: "Unauthorized" },
+				{ status: 401 },
+			);
 		}
 
 		// Fetch user's subscription ID from Strapi
@@ -23,21 +27,28 @@ export async function POST(req) {
 			`${STRAPI_URL}/api/users?filters[clerkId][$eq]=${user.id}`,
 			{
 				headers: { Authorization: `Bearer ${STRAPI_API_TOKEN}` },
-			}
+			},
 		);
 
 		const data = await response.json();
-		const users = Array.isArray(data) ? data : (data.data || []);
+		const users = Array.isArray(data) ? data : data.data || [];
 		const existingUser = users[0];
 
 		if (!existingUser?.razorpaySubscriptionId) {
 			return NextResponse.json(
 				{ error: "No active subscription found" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
 		const subscriptionId = existingUser.razorpaySubscriptionId;
+
+		if (existingUser.razorpaySubscriptionStatus === "cancelled") {
+			return NextResponse.json({
+				success: true,
+				message: "Subscription already cancelled",
+			});
+		}
 
 		// Cancel subscription in Razorpay
 		await razorpay.subscriptions.cancel(subscriptionId);
@@ -63,7 +74,7 @@ export async function POST(req) {
 		console.error("Subscription cancellation error:", error);
 		return NextResponse.json(
 			{ error: error.message || "Failed to cancel subscription" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
