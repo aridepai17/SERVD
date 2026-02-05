@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import { currentUser } from "@clerk/nextjs/server";
 
-const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
+const STRAPI_URL =
+	process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 
 const razorpay = new Razorpay({
@@ -15,7 +16,10 @@ export async function POST(req) {
 		const user = await currentUser();
 
 		if (!user) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+			return NextResponse.json(
+				{ error: "Unauthorized" },
+				{ status: 401 },
+			);
 		}
 
 		const { email, firstName, lastName } = {
@@ -30,13 +34,30 @@ export async function POST(req) {
 			`${STRAPI_URL}/api/users?filters[clerkId][$eq]=${user.id}`,
 			{
 				headers: { Authorization: `Bearer ${STRAPI_API_TOKEN}` },
-			}
+			},
 		);
 		const existingUserData = await existingUserResponse.json();
 		const existingUsers = Array.isArray(existingUserData)
 			? existingUserData
 			: existingUserData.data || [];
 		const existingUser = existingUsers[0];
+
+		if (!existingUser) {
+			return NextResponse.json(
+				{ error: "User record not found in Strapi" },
+				{ status: 404 },
+			);
+		}
+
+		if (
+			existingUser.subscriptionTier === "pro" ||
+			existingUser.razorpaySubscriptionStatus === "active"
+		) {
+			return NextResponse.json(
+				{ error: "Subscription already active" },
+				{ status: 409 },
+			);
+		}
 
 		if (existingUser?.razorpayCustomerId) {
 			customerId = existingUser.razorpayCustomerId;
@@ -45,7 +66,7 @@ export async function POST(req) {
 			const customer = await razorpay.customers.create({
 				name: `${firstName} ${lastName}`.trim(),
 				email,
-				clerkId: user.id,
+				notes: { clerkId: user.id },
 			});
 
 			customerId = customer.id;
@@ -72,13 +93,20 @@ export async function POST(req) {
 		const subscription = await razorpay.subscriptions.create({
 			customer_id: customerId,
 			plan_id: PLAN_ID,
-			total_count: 0, // 0 = infinite billing until cancelled
+			total_count: 1,
 			quantity: 1,
 			customer_notify: 1,
 			notify_info: {
 				email,
 			},
 		});
+
+		if (!subscription.short_url) {
+			return NextResponse.json(
+				{ error: "Checkout URL missing from Razorpay response" },
+				{ status: 500 },
+			);
+		}
 
 		return NextResponse.json({
 			success: true,
@@ -89,7 +117,7 @@ export async function POST(req) {
 		console.error("Subscription creation error:", error);
 		return NextResponse.json(
 			{ error: error.message || "Failed to create subscription" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
