@@ -59,8 +59,7 @@ export async function POST(req) {
 		console.log("Processing subscription for user:", user.id);
 		console.log("Email:", email);
 
-		// Check if customer already exists in Strapi
-		let customerId = null;
+		// Check if user already has subscription
 		const existingUserResponse = await fetch(
 			`${STRAPI_URL}/api/users?filters[clerkId][$eq]=${user.id}`,
 			{
@@ -90,64 +89,24 @@ export async function POST(req) {
 			);
 		}
 
-		if (existingUser?.razorpayCustomerId) {
-			customerId = existingUser.razorpayCustomerId;
-			console.log("Using existing Razorpay customer ID:", customerId);
-		} else {
-			// Create customer in Razorpay using direct API
-			console.log("Creating new Razorpay customer...");
-			try {
-				const customer = await razorpayFetch("/customers", "POST", {
-					name: `${firstName} ${lastName}`.trim() || "Customer",
-					email,
-					notes: { clerkId: user.id },
-				});
-				customerId = customer.id;
-				console.log("Customer created:", customerId);
+		// Skip customer creation - use customer_create_with_razorpay in subscription
+		// This creates the customer inline when creating subscription
+		const customerName = `${firstName} ${lastName}`.trim() || "Customer";
+		console.log("Creating subscription with inline customer:", customerName, email);
 
-				// Save customer ID to Strapi
-				await fetch(`${STRAPI_URL}/api/users/${existingUser.id}`, {
-					method: "PUT",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${STRAPI_API_TOKEN}`,
-					},
-					body: JSON.stringify({
-						razorpayCustomerId: customerId,
-					}),
-				});
-			} catch (customerError) {
-				console.error("Customer creation failed:", customerError);
-				return NextResponse.json(
-					{
-						error: customerError.error?.description || "Failed to create Razorpay customer",
-						details: customerError.error,
-					},
-					{ status: customerError.statusCode || 500 },
-				);
-			}
-		}
-
-		// Validate plan ID
-		if (!RAZORPAY_PLAN_ID || RAZORPAY_PLAN_ID === "plan_YOUR_PLAN_ID") {
-			return NextResponse.json(
-				{ error: "Invalid Razorpay plan ID" },
-				{ status: 400 },
-			);
-		}
-
-		console.log("Creating subscription for customer:", customerId);
-
-		// Create subscription
+		// Create subscription with inline customer creation
 		const subscription = await razorpayFetch("/subscriptions", "POST", {
-			customer_id: customerId,
+			customer_create_with_razorpay: true,
+			customer: {
+				name: customerName,
+				email: email,
+				notes: { clerkId: user.id },
+			},
 			plan_id: RAZORPAY_PLAN_ID,
-			total_count: 12, // 12 months
+			total_count: 12,
 			quantity: 1,
 			customer_notify: 1,
-			notify_info: {
-				email,
-			},
+			notify_info: { email },
 		});
 
 		console.log("Subscription created:", subscription.id);
