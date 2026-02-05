@@ -89,19 +89,71 @@ export async function POST(req) {
 			);
 		}
 
-		// Skip customer creation - use customer_create_with_razorpay in subscription
-		// This creates the customer inline when creating subscription
-		const customerName = `${firstName} ${lastName}`.trim() || "Customer";
-		console.log("Creating subscription with inline customer:", customerName, email);
+		// Try to find existing customer by email
+		let customerId = existingUser.razorpayCustomerId;
+		if (!customerId) {
+			console.log("Searching for existing customer by email...");
+			try {
+				// Try to fetch customer by email using Razorpay's customer list API
+				const customers = await razorpayFetch(`/customers?email=${encodeURIComponent(email)}`);
+				if (customers.items && customers.items.length > 0) {
+					customerId = customers.items[0].id;
+					console.log("Found existing customer:", customerId);
+				}
+			} catch (searchError) {
+				console.log("Customer search failed, will create new");
+			}
+		}
 
-		// Create subscription with inline customer creation
+		// Create customer if not found
+		if (!customerId) {
+			console.log("Creating new Razorpay customer...");
+			try {
+				const customer = await razorpayFetch("/customers", "POST", {
+					name: `${firstName} ${lastName}`.trim() || "Customer",
+					email: email,
+				});
+				customerId = customer.id;
+				console.log("Customer created:", customerId);
+
+				// Save customer ID to Strapi
+				await fetch(`${STRAPI_URL}/api/users/${existingUser.id}`, {
+					method: "PUT",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+					},
+					body: JSON.stringify({
+						razorpayCustomerId: customerId,
+					}),
+				});
+			} catch (customerError) {
+				console.error("Customer creation failed:", customerError);
+				return NextResponse.json(
+					{
+						error: customerError.error?.description || "Failed to create Razorpay customer",
+						details: customerError.error,
+					},
+					{ status: customerError.statusCode || 500 },
+				);
+			}
+		} else {
+			console.log("Using existing customer ID:", customerId);
+		}
+
+		// Validate plan ID
+		if (!RAZORPAY_PLAN_ID || RAZORPAY_PLAN_ID === "plan_YOUR_PLAN_ID") {
+			return NextResponse.json(
+				{ error: "Invalid Razorpay plan ID" },
+				{ status: 400 },
+			);
+		}
+
+		console.log("Creating subscription for customer:", customerId);
+
+		// Create subscription
 		const subscription = await razorpayFetch("/subscriptions", "POST", {
-			customer_create_with_razorpay: true,
-			customer: {
-				name: customerName,
-				email: email,
-				notes: { clerkId: user.id },
-			},
+			customer_id: customerId,
 			plan_id: RAZORPAY_PLAN_ID,
 			total_count: 12,
 			quantity: 1,

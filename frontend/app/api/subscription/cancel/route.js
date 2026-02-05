@@ -1,15 +1,42 @@
 import { NextResponse } from "next/server";
-import Razorpay from "razorpay";
 import { currentUser } from "@clerk/nextjs/server";
 
 const STRAPI_URL =
 	process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 
-const razorpay = new Razorpay({
-	key_id: process.env.RAZORPAY_KEY_ID,
-	key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+
+const RAZORPAY_API_BASE = "https://api.razorpay.com/v1";
+
+async function razorpayFetch(endpoint, method = "GET", body = null) {
+	const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
+
+	const options = {
+		method,
+		headers: {
+			Authorization: `Basic ${auth}`,
+			"Content-Type": "application/json",
+		},
+	};
+
+	if (body) {
+		options.body = JSON.stringify(body);
+	}
+
+	const response = await fetch(`${RAZORPAY_API_BASE}${endpoint}`, options);
+	const data = await response.json();
+
+	if (!response.ok) {
+		throw {
+			statusCode: response.status,
+			error: data,
+		};
+	}
+
+	return data;
+}
 
 export async function POST(req) {
 	try {
@@ -50,8 +77,10 @@ export async function POST(req) {
 			});
 		}
 
-		// Cancel subscription in Razorpay
-		await razorpay.subscriptions.cancel(subscriptionId);
+		console.log("Cancelling subscription:", subscriptionId);
+
+		// Cancel subscription in Razorpay using direct API
+		await razorpayFetch(`/subscriptions/${subscriptionId}/cancel`, "POST");
 
 		// Update Strapi to free tier
 		await fetch(`${STRAPI_URL}/api/users/${existingUser.id}`, {
@@ -73,8 +102,11 @@ export async function POST(req) {
 	} catch (error) {
 		console.error("Subscription cancellation error:", error);
 		return NextResponse.json(
-			{ error: error.message || "Failed to cancel subscription" },
-			{ status: 500 },
+			{
+				error: error.error?.description || error.message || "Failed to cancel subscription",
+				details: error.error || null,
+			},
+			{ status: error.statusCode || 500 },
 		);
 	}
 }
