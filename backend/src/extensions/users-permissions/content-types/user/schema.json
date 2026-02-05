@@ -103,19 +103,24 @@
 			"mappedBy": "user"
 		},
 		"razorpayCustomerId": {
-			"type": "string"
+			"type": "string",
+            "private": true
 		},
 		"razorpaySubscriptionId": {
-			"type": "string"
+			"type": "string",
+            "private": true
 		},
 		"razorpaySubscriptionStatus": {
-			"type": "string"
+			"type": "string",
+            "private": true
 		},
         "razorpayPaymentStatus": {
-            "type": "string"
+            "type": "string",
+            "private": true
         },
 		"razorpayPlanId": {
-			"type": "string"
+			"type": "string",
+            "private": true
 		}
 	}
 }
