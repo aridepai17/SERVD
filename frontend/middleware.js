@@ -1,4 +1,5 @@
-import arcjet, { detectBot, shield } from "@arcjet/next";
+import arcjet from "@arcjet/next";
+import { detectBot } from "@arcjet/next";
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
@@ -9,15 +10,10 @@ const isProtectedRoute = createRouteMatcher([
 	"/dashboard(.*)",
 ]);
 
-// Arcjet global protection
+// Arcjet global protection (lightweight - bot detection only)
 const aj = arcjet({
 	key: process.env.ARCJET_KEY,
 	rules: [
-		// Shield WAF - protects against SQL injection, XSS, etc.
-		shield({
-			mode: "LIVE",
-		}),
-
 		// Bot detection - allow search engines, block against malicious bots
 		detectBot({
 			mode: "LIVE",
