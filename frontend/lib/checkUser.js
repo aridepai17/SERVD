@@ -37,9 +37,11 @@ export const checkUser = async () => {
 		});
 
 		if (clerkIdResponse.ok) {
-			const data = await clerkIdResponse.json();
-			if (data.data && data.data.length > 0) {
-				const foundUser = data.data[0];
+			const clerkData = await clerkIdResponse.json();
+			// Handle both array response and object-with-data response
+			const users = Array.isArray(clerkData) ? clerkData : (clerkData.data || []);
+			if (users.length > 0) {
+				const foundUser = users[0];
 				console.log("Found by clerkId:", foundUser.id);
 				return { 
 					...foundUser.attributes, 
@@ -61,8 +63,10 @@ export const checkUser = async () => {
 		if (emailResponse.ok) {
 			const emailData = await emailResponse.json();
 			console.log("Email search result:", emailData);
-			if (emailData.data && emailData.data.length > 0) {
-				const userByEmail = emailData.data[0];
+			// Handle both array response and object-with-data response
+			const users = Array.isArray(emailData) ? emailData : (emailData.data || []);
+			if (users.length > 0) {
+				const userByEmail = users[0];
 				console.log("Found by email:", userByEmail.id, "updating clerkId...");
 				
 				// Update clerkId for existing user
