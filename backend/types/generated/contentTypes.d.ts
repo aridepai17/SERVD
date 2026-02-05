@@ -1105,6 +1105,11 @@ export interface PluginUsersPermissionsUser
       }>;
     provider: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
+    razorpayCustomerId: Schema.Attribute.String;
+    razorpayPaymentStatus: Schema.Attribute.String;
+    razorpayPlanId: Schema.Attribute.String;
+    razorpaySubscriptionId: Schema.Attribute.String;
+    razorpaySubscriptionStatus: Schema.Attribute.String;
     recipes: Schema.Attribute.Relation<'oneToMany', 'api::recipe.recipe'>;
     resetPasswordToken: Schema.Attribute.String & Schema.Attribute.Private;
     role: Schema.Attribute.Relation<
