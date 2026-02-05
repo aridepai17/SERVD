@@ -7,28 +7,27 @@ import {
 	Font,
 } from "@react-pdf/renderer";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
+// Register fonts from public folder using relative paths
 Font.register({
 	family: "Inter",
 	fonts: [
 		{
-			src: `${APP_URL}/fonts/Inter-Regular.ttf`,
+			src: "/fonts/Inter-Regular.ttf",
 			fontWeight: 400,
 			fontStyle: "normal",
 		},
 		{
-			src: `${APP_URL}/fonts/Inter-Italic.ttf`,
+			src: "/fonts/Inter-Italic.ttf",
 			fontWeight: 400,
 			fontStyle: "italic",
 		},
 		{
-			src: `${APP_URL}/fonts/Inter-Bold.ttf`,
+			src: "/fonts/Inter-Bold.ttf",
 			fontWeight: 700,
 			fontStyle: "normal",
 		},
 		{
-			src: `${APP_URL}/fonts/Inter-BoldItalic.ttf`,
+			src: "/fonts/Inter-BoldItalic.ttf",
 			fontWeight: 700,
 			fontStyle: "italic",
 		},
