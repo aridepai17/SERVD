@@ -14,6 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 
 export default function PricingSection({ subscriptionTier = "free" }) {
+	// INR pricing - ₹399 (marketing pricing)
+	const PRO_PRICE_INR = 399;
+
 	return (
 		<div className="max-w-6xl mx-auto">
 			<div className="mb-16">
@@ -33,7 +36,7 @@ export default function PricingSection({ subscriptionTier = "free" }) {
 							Sous Chef
 						</CardTitle>
 						<div className="text-5xl font-bold text-stone-900">
-							$0
+							₹0
 							<span className="text-lg font-normal text-stone-400">
 								/mo
 							</span>
@@ -85,7 +88,7 @@ export default function PricingSection({ subscriptionTier = "free" }) {
 							Head Chef
 						</CardTitle>
 						<div className="text-5xl font-bold text-orange-600">
-							$4.99
+							₹{PRO_PRICE_INR}
 							<span className="text-lg font-normal text-orange-400">
 								/mo
 							</span>
