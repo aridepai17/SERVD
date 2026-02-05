@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { Check } from "lucide-react";
-import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -12,10 +12,68 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { toast } from "sonner";
 
 export default function PricingSection({ subscriptionTier = "free" }) {
 	// INR pricing - ₹399 (marketing pricing)
 	const PRO_PRICE_INR = 399;
+	const [isLoading, setIsLoading] = useState(false);
+	const { user } = useUser();
+
+	const handleSubscribe = async () => {
+		if (!user) return;
+
+		setIsLoading(true);
+		try {
+			const res = await fetch("/api/subscription/create", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					userId: user.id,
+					email: user.primaryEmailAddress?.emailAddress,
+				}),
+			});
+
+			const data = await res.json();
+
+			if (data.checkoutUrl) {
+				window.location.href = data.checkoutUrl;
+			} else {
+				toast.error(data.error || "Failed to create subscription");
+			}
+		} catch (error) {
+			console.error("Subscription error:", error);
+			toast.error("Something went wrong");
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const handleCancelSubscription = async () => {
+		if (!confirm("Are you sure you want to cancel your subscription?")) return;
+
+		setIsLoading(true);
+		try {
+			const res = await fetch("/api/subscription/cancel", {
+				method: "POST",
+			});
+
+			const data = await res.json();
+
+			if (data.success) {
+				toast.success("Subscription cancelled successfully");
+				// Force reload to update UI
+				window.location.reload();
+			} else {
+				toast.error(data.error || "Failed to cancel subscription");
+			}
+		} catch (error) {
+			console.error("Cancellation error:", error);
+			toast.error("Something went wrong");
+		} finally {
+			setIsLoading(false);
+		}
+	};
 
 	return (
 		<div className="max-w-6xl mx-auto">
@@ -121,24 +179,36 @@ export default function PricingSection({ subscriptionTier = "free" }) {
 						</ul>
 					</CardContent>
 
-					<CardFooter>
+					<CardFooter className="flex flex-col gap-3">
 						<SignedIn>
-							{/* Link to Stripe/Billing portal for subscription */}
-							<a
-								href="https://billing.stripe.com/p/login/test_4ypcMg7"
-								target="_blank"
-								rel="noopener noreferrer"
-								className="w-full block"
-							>
+							{subscriptionTier === "pro" ? (
+								<>
+									<Button
+										disabled
+										className="w-full bg-green-600 text-white cursor-default"
+									>
+										Current Plan
+									</Button>
+									<Button
+										variant="outline"
+										onClick={handleCancelSubscription}
+										disabled={isLoading}
+										className="w-full border-2 border-red-600 text-red-600 hover:bg-red-50"
+									>
+										{isLoading
+											? "Cancelling..."
+											: "Cancel Subscription"}
+									</Button>
+								</>
+							) : (
 								<Button
-									disabled={subscriptionTier === "pro"}
-									className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 disabled:cursor-not-allowed text-white"
+									onClick={handleSubscribe}
+									disabled={isLoading}
+									className="w-full bg-orange-600 hover:bg-orange-700 text-white"
 								>
-									{subscriptionTier === "pro"
-										? "Subscribed"
-										: "Subscribe Now"}
+									{isLoading ? "Loading..." : "Subscribe Now"}
 								</Button>
-							</a>
+							)}
 						</SignedIn>
 						<SignedOut>
 							<SignInButton mode="modal">
