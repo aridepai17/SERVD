@@ -104,6 +104,18 @@
       "relation": "oneToMany",
       "target": "api::saved-recipe.saved-recipe",
       "mappedBy": "user"
+    },
+    "razorpayCustomerId": {
+      "type": "string"
+    },
+    "razorpaySubscriptionId": {
+      "type": "string"
+    },
+    "razorypaySubscriptionStatus": {
+      "type": "string"
+    },
+    "razorpayPlanId": {
+      "type": "string"
     }
   }
 }
