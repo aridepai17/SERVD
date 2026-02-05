@@ -61,15 +61,22 @@ export async function POST(req) {
 
 		if (existingUser?.razorpayCustomerId) {
 			customerId = existingUser.razorpayCustomerId;
+			console.log("Using existing Razorpay customer ID:", customerId);
 		} else {
 			// Create customer in Razorpay
-			const customer = await razorpay.customers.create({
-				name: `${firstName} ${lastName}`.trim(),
-				email,
-				notes: { clerkId: user.id },
-			});
-
-			customerId = customer.id;
+			console.log("Creating new Razorpay customer...");
+			try {
+				const customer = await razorpay.customers.create({
+					name: `${firstName} ${lastName}`.trim(),
+					email,
+					notes: { clerkId: user.id },
+				});
+				customerId = customer.id;
+				console.log("Customer created:", customerId);
+			} catch (customerError) {
+				console.error("Customer creation failed:", customerError);
+				throw customerError;
+			}
 
 			// Save customer ID to Strapi
 			if (existingUser) {
@@ -87,9 +94,17 @@ export async function POST(req) {
 		}
 
 		// Create subscription
-		// Replace with your actual plan ID from Razorpay Dashboard
-		const PLAN_ID = process.env.RAZORPAY_PLAN_ID || "plan_YOUR_PLAN_ID";
+		const PLAN_ID = process.env.RAZORPAY_PLAN_ID;
+		console.log("Using plan ID:", PLAN_ID);
 
+		if (!PLAN_ID || PLAN_ID === "plan_YOUR_PLAN_ID") {
+			return NextResponse.json(
+				{ error: "Invalid Razorpay plan ID. Please configure RAZORPAY_PLAN_ID in environment variables." },
+				{ status: 400 },
+			);
+		}
+
+		console.log("Creating subscription for customer:", customerId);
 		const subscription = await razorpay.subscriptions.create({
 			customer_id: customerId,
 			plan_id: PLAN_ID,
@@ -115,9 +130,16 @@ export async function POST(req) {
 		});
 	} catch (error) {
 		console.error("Subscription creation error:", error);
+		// Log more details for debugging
+		if (error.error) {
+			console.error("Razorpay error details:", JSON.stringify(error.error, null, 2));
+		}
 		return NextResponse.json(
-			{ error: error.message || "Failed to create subscription" },
-			{ status: 500 },
+			{
+				error: error.message || error.error?.description || "Failed to create subscription",
+				details: error.error || null,
+			},
+			{ status: error.statusCode || 500 },
 		);
 	}
 }
