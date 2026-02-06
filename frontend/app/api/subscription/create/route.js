@@ -151,7 +151,10 @@ export async function POST(req) {
 
 		console.log("Creating subscription for customer:", customerId);
 
-		// Create subscription
+		// Calculate start date (24 hours from now)
+		const startAt = Math.floor(Date.now() / 1000) + 86400;
+
+		// Create subscription in 'created' status (pending payment)
 		const subscription = await razorpayFetch("/subscriptions", "POST", {
 			customer_id: customerId,
 			plan_id: RAZORPAY_PLAN_ID,
@@ -159,21 +162,23 @@ export async function POST(req) {
 			quantity: 1,
 			customer_notify: 1,
 			notify_info: { email },
+			start_at: startAt,
 		});
 
 		console.log("Subscription created:", subscription.id);
+		console.log("Subscription status:", subscription.status);
 
-		if (!subscription.short_url) {
-			return NextResponse.json(
-				{ error: "Checkout URL missing from Razorpay response" },
-				{ status: 500 },
-			);
-		}
+		// Generate authorization link for checkout
+		const authLink = await razorpayFetch(`/subscriptions/${subscription.id}/auth/link`, "POST", {
+			return_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/subscription/verify`,
+		});
+
+		console.log("Auth link generated:", authLink.short_url);
 
 		return NextResponse.json({
 			success: true,
 			subscriptionId: subscription.id,
-			checkoutUrl: subscription.short_url,
+			authUrl: authLink.short_url,
 		});
 	} catch (error) {
 		console.error("Subscription creation error:", error);
