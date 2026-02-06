@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 
+function getBaseUrl() {
+	const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+	if (!baseUrl) {
+		throw new Error("NEXT_PUBLIC_APP_URL is not configured");
+	}
+	return baseUrl;
+}
+
 export async function POST(req) {
 	try {
 		const formData = await req.formData();
@@ -21,8 +29,8 @@ export async function POST(req) {
 
 			if (expectedSignature !== razorpaySignature) {
 				console.log("Invalid Razorpay signature in callback");
-				// Redirect with error instead of proceeding
-				const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+				// Redirect with error - validate baseUrl first
+				const baseUrl = getBaseUrl();
 				const verifyUrl = new URL("/subscription/verify", baseUrl);
 				verifyUrl.searchParams.set("error_code", "signature_invalid");
 				verifyUrl.searchParams.set(
@@ -38,11 +46,8 @@ export async function POST(req) {
 		console.log("- Payment ID:", razorpayPaymentId);
 		console.log("- Error:", errorCode, errorDescription);
 
-		const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-		if (!baseUrl) {
-			console.error("NEXT_PUBLIC_APP_URL is not configured");
-			return new NextResponse("Server misconfiguration", { status: 500 });
-		}
+		// Get validated base URL
+		const baseUrl = getBaseUrl();
 		const verifyUrl = new URL("/subscription/verify", baseUrl);
 
 		// Map Razorpay params to our params
@@ -67,12 +72,13 @@ export async function POST(req) {
 	} catch (error) {
 		console.error("Callback error:", error);
 
-		const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-		if (!baseUrl) {
-			console.error("NEXT_PUBLIC_APP_URL is not configured");
+		// Handle missing environment variable
+		if (error.message === "NEXT_PUBLIC_APP_URL is not configured") {
 			return new NextResponse("Server misconfiguration", { status: 500 });
 		}
 
+		// Redirect to verify page with error
+		const baseUrl = getBaseUrl();
 		const verifyUrl = new URL("/subscription/verify", baseUrl);
 		verifyUrl.searchParams.set("error_code", "callback_error");
 		verifyUrl.searchParams.set(
