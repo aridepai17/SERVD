@@ -1,36 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
-export default function SubscriptionVerifyPage() {
+function SubscriptionVerifyClient() {
 	const searchParams = useSearchParams();
 	const router = useRouter();
 	const [status, setStatus] = useState("verifying");
 	const [message, setMessage] = useState("Verifying your subscription...");
 
 	useEffect(() => {
+		let redirectTimer;
 		const verifySubscription = async () => {
-			const subscriptionId = searchParams.get("subscription_id");
-			const paymentId = searchParams.get("payment_id");
+			const subscriptionId = searchParams.get("razorpay_subscription_id");
+			const paymentId = searchParams.get("razorpay_payment_id");
 			const errorCode = searchParams.get("error_code");
 			const errorDescription = searchParams.get("error_description");
 
 			// Check for payment errors
 			if (errorCode) {
 				setStatus("error");
-				setMessage(
-					`Payment failed: ${errorDescription || errorCode}`,
+				setMessage(`Payment failed: ${errorDescription || errorCode}`);
+				redirectTimer = setTimeout(
+					() => router.push("/dashboard"),
+					5000,
 				);
-				setTimeout(() => router.push("/dashboard"), 5000);
 				return;
 			}
 
 			if (!subscriptionId) {
 				setStatus("error");
 				setMessage("No subscription ID found");
-				setTimeout(() => router.push("/dashboard"), 5000);
+				redirectTimer = setTimeout(
+					() => router.push("/dashboard"),
+					5000,
+				);
 				return;
 			}
 
@@ -52,21 +57,31 @@ export default function SubscriptionVerifyPage() {
 					setMessage(
 						"Subscription activated successfully! Redirecting to dashboard...",
 					);
-					setTimeout(() => router.push("/dashboard"), 3000);
+					redirectTimer = setTimeout(
+						() => router.push("/dashboard"),
+						3000,
+					);
 				} else {
 					setStatus("error");
 					setMessage(data.error || "Verification failed");
-					setTimeout(() => router.push("/dashboard"), 5000);
+					redirectTimer = setTimeout(
+						() => router.push("/dashboard"),
+						5000,
+					);
 				}
 			} catch (error) {
 				console.error("Verification error:", error);
 				setStatus("error");
 				setMessage("Something went wrong during verification");
-				setTimeout(() => router.push("/dashboard"), 5000);
+				redirectTimer = setTimeout(
+					() => router.push("/dashboard"),
+					5000,
+				);
 			}
 		};
 
 		verifySubscription();
+		return () => clearTimeout(redirectTimer);
 	}, [searchParams, router]);
 
 	return (
@@ -131,5 +146,24 @@ export default function SubscriptionVerifyPage() {
 				)}
 			</div>
 		</div>
+	);
+}
+
+export default function SubscriptionVerifyPage() {
+	return (
+		<Suspense
+			fallback={
+				<div className="min-h-screen flex items-center justify-center bg-stone-50">
+					<div className="text-center">
+						<Loader2 className="h-12 w-12 animate-spin text-orange-600 mx-auto mb-4" />
+						<h1 className="text-2xl font-bold text-stone-900 mb-2">
+							Loading...
+						</h1>
+					</div>
+				</div>
+			}
+		>
+			<SubscriptionVerifyClient />
+		</Suspense>
 	);
 }
