@@ -172,7 +172,7 @@ export async function POST(req) {
 		// Generate authorization link for checkout
 		// callback_url receives Razorpay's POST with razorpay_subscription_id and razorpay_payment_id
 		const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/subscription/callback`;
-		const authLink = await razorpayFetch(`/subscriptions/${subscription.id}/auth/link`, "POST", {
+		const authLink = await razorpayFetch(`/subscriptions/${subscription.id}/auth_links`, "POST", {
 			callback_url: callbackUrl,
 		});
 
