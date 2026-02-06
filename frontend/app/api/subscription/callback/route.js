@@ -16,7 +16,7 @@ export async function POST(req) {
 		if (razorpayPaymentId && razorpaySubscriptionId && razorpaySignature) {
 			const expectedSignature = crypto
 				.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-				.update(`${razorpayPaymentId}${razorpaySubscriptionId}`)
+				.update(`${razorpayPaymentId}|${razorpaySubscriptionId}`)
 				.digest("hex");
 
 			if (expectedSignature !== razorpaySignature) {
@@ -67,13 +67,18 @@ export async function POST(req) {
 	} catch (error) {
 		console.error("Callback error:", error);
 
-		// Redirect to verify page with error on failure
-		const baseUrl =
-			process.env.NEXT_PUBLIC_APP_URL ||
-			`https://${req.headers.get("host") || "localhost:3000"}`;
+		const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+		if (!baseUrl) {
+			console.error("NEXT_PUBLIC_APP_URL is not configured");
+			return new NextResponse("Server misconfiguration", { status: 500 });
+		}
+
 		const verifyUrl = new URL("/subscription/verify", baseUrl);
 		verifyUrl.searchParams.set("error_code", "callback_error");
-		verifyUrl.searchParams.set("error_description", error.message);
+		verifyUrl.searchParams.set(
+			"error_description",
+			"An unexpected error occurred during payment callback",
+		);
 
 		return NextResponse.redirect(verifyUrl.toString(), 303);
 	}
