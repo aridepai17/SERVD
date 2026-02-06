@@ -169,19 +169,24 @@ export async function POST(req) {
 		console.log("Subscription created:", subscription.id);
 		console.log("Subscription status:", subscription.status);
 
-		// Generate authorization link for checkout
-		// callback_url receives Razorpay's POST with razorpay_subscription_id and razorpay_payment_id
-		const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/subscription/callback`;
-		const authLink = await razorpayFetch(`/subscriptions/${subscription.id}/auth_links`, "POST", {
+		// Generate invoice for checkout
+		// Invoice provides a checkout URL for the customer to complete payment
+		const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/subscription/callback`;
+		const invoice = await razorpayFetch("/invoices", "POST", {
+			type: "invoice",
+			customer_id: customerId,
+			subscription_id: subscription.id,
+			expire_by: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 7 days
 			callback_url: callbackUrl,
 		});
 
-		console.log("Auth link generated:", authLink.short_url);
+		console.log("Invoice created:", invoice.id);
+		console.log("Invoice short URL:", invoice.short_url);
 
 		return NextResponse.json({
 			success: true,
 			subscriptionId: subscription.id,
-			authUrl: authLink.short_url,
+			authUrl: invoice.short_url,
 		});
 	} catch (error) {
 		console.error("Subscription creation error:", error);
