@@ -40,7 +40,9 @@ export default function PricingSection({ subscriptionTier = "free" }) {
 
 			const data = await res.json();
 
-			if (data.checkoutUrl) {
+			if (data.authUrl) {
+				window.location.href = data.authUrl;
+			} else if (data.checkoutUrl) {
 				window.location.href = data.checkoutUrl;
 			} else {
 				toast.error(data.error || "Failed to create subscription");
