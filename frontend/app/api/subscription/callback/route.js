@@ -44,7 +44,7 @@ export async function GET(req) {
 		);
 		const razorpayPaymentLinkReferenceId = searchParams.get(
 			"razorpay_payment_link_reference_id",
-		);
+		) ?? "";
 		const razorpayPaymentLinkStatus = searchParams.get(
 			"razorpay_payment_link_status",
 		);
