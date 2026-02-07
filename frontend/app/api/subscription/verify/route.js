@@ -61,11 +61,31 @@ export async function POST(req) {
 
 		const { subscriptionId, paymentId } = body;
 
-		if (!subscriptionId) {
-			return NextResponse.json(
-				{ error: "Subscription ID required" },
-				{ status: 400 },
-			);
+		// Validate IDs based on type
+		// Payment Links (plink_*) require paymentId
+		// Subscriptions require subscriptionId
+		// Standalone payments require paymentId
+		const isPaymentLink = subscriptionId?.startsWith("plink_");
+
+		if (isPaymentLink) {
+			// Payment Link verification requires paymentId
+			if (!paymentId) {
+				return NextResponse.json(
+					{ error: "Payment ID required for Payment Link verification" },
+					{ status: 400 },
+				);
+			}
+		} else if (subscriptionId) {
+			// Have subscriptionId and it's not a Payment Link - valid for subscription verification
+			// Continue to subscription verification
+		} else {
+			// No subscriptionId but may have paymentId for standalone payment
+			if (!paymentId) {
+				return NextResponse.json(
+					{ error: "Subscription ID or Payment ID required" },
+					{ status: 400 },
+				);
+			}
 		}
 
 		// Find user in Strapi
@@ -88,70 +108,139 @@ export async function POST(req) {
 			);
 		}
 
-		// Server-side Razorpay verification
-		let razorpaySubscription;
-		try {
-			razorpaySubscription = await razorpayFetch(`/subscriptions/${subscriptionId}`);
-		} catch (fetchError) {
-			console.error("Failed to fetch subscription from Razorpay:", fetchError);
-			return NextResponse.json(
-				{ error: "Subscription not found in Razorpay" },
-				{ status: 404 },
+		// Check if this is a subscription or payment link
+		if (isPaymentLink) {
+			// Verify payment link payment
+			let payment;
+			try {
+				payment = await razorpayFetch(`/payments/${paymentId}`);
+			} catch (fetchError) {
+				console.error("Failed to fetch payment from Razorpay:", fetchError);
+				return NextResponse.json(
+					{ error: "Payment not found in Razorpay" },
+					{ status: 404 },
+				);
+			}
+
+			// Verify payment status
+			const validPaymentStatuses = ["authorized", "captured"];
+			if (!validPaymentStatuses.includes(payment.status)) {
+				console.error(`Invalid payment status: ${payment.status}`);
+				return NextResponse.json(
+					{ error: `Payment not completed: ${payment.status}` },
+					{ status: 400 },
+				);
+			}
+
+			// Verify customer_id matches
+			if (payment.customer_id !== strapiUser.razorpayCustomerId) {
+				console.error(
+					`Customer ID mismatch: ${payment.customer_id} vs ${strapiUser.razorpayCustomerId}`,
+				);
+				return NextResponse.json(
+					{ error: "Payment does not belong to this user" },
+					{ status: 403 },
+				);
+			}
+
+			// All checks passed - update user subscription status
+			const updateRes = await fetch(`${STRAPI_URL}/api/users/${strapiUser.id}`, {
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+				},
+				body: JSON.stringify({
+					subscriptionTier: "pro",
+					razorpaySubscriptionId: isPaymentLink ? null : subscriptionId,
+					razorpayPaymentLinkId: isPaymentLink ? subscriptionId : null,
+					razorpaySubscriptionStatus: "active",
+					razorpayPaymentId: paymentId,
+				}),
+			});
+
+			if (!updateRes.ok) {
+				console.error("Strapi update failed:", await updateRes.text());
+				return NextResponse.json(
+					{ error: "Failed to activate subscription" },
+					{ status: 500 },
+				);
+			}
+
+			console.log(
+				`Subscription verified for user ${user.id}: ${subscriptionId} (payment: ${paymentId})`,
 			);
+
+			return NextResponse.json({
+				success: true,
+				message: "Subscription activated",
+			});
+		} else {
+			// Original subscription verification logic
+			let razorpaySubscription;
+			try {
+				razorpaySubscription = await razorpayFetch(`/subscriptions/${subscriptionId}`);
+			} catch (fetchError) {
+				console.error("Failed to fetch subscription from Razorpay:", fetchError);
+				return NextResponse.json(
+					{ error: "Subscription not found in Razorpay" },
+					{ status: 404 },
+				);
+			}
+
+			// Verify subscription status - only confirmed statuses grant Pro access
+			const validStatuses = ["active", "authenticated"];
+			if (!validStatuses.includes(razorpaySubscription.status)) {
+				console.error(`Invalid subscription status: ${razorpaySubscription.status}`);
+				return NextResponse.json(
+					{ error: `Invalid subscription status: ${razorpaySubscription.status}` },
+					{ status: 400 },
+				);
+			}
+
+			// Verify customer_id matches stored customer ID
+			if (razorpaySubscription.customer_id !== strapiUser.razorpayCustomerId) {
+				console.error(
+					`Customer ID mismatch: ${razorpaySubscription.customer_id} vs ${strapiUser.razorpayCustomerId}`,
+				);
+				return NextResponse.json(
+					{ error: "Subscription does not belong to this user" },
+					{ status: 403 },
+				);
+			}
+
+			// All checks passed - update user subscription status
+			const updateRes = await fetch(`${STRAPI_URL}/api/users/${strapiUser.id}`, {
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+				},
+				body: JSON.stringify({
+					subscriptionTier: "pro",
+					razorpaySubscriptionId: subscriptionId,
+					razorpaySubscriptionStatus: razorpaySubscription.status,
+					razorpayPaymentId: paymentId || null,
+				}),
+			});
+
+			if (!updateRes.ok) {
+				console.error("Strapi update failed:", await updateRes.text());
+				return NextResponse.json(
+					{ error: "Failed to activate subscription" },
+					{ status: 500 },
+				);
+			}
+
+			console.log(
+				`Subscription verified for user ${user.id}: ${subscriptionId} (status: ${razorpaySubscription.status})`,
+			);
+
+			return NextResponse.json({
+				success: true,
+				message: "Subscription activated",
+			});
 		}
-
-		// Verify subscription status
-		const validStatuses = ["active", "authenticated", "pending"];
-		if (!validStatuses.includes(razorpaySubscription.status)) {
-			console.error(`Invalid subscription status: ${razorpaySubscription.status}`);
-			return NextResponse.json(
-				{ error: `Invalid subscription status: ${razorpaySubscription.status}` },
-				{ status: 400 },
-			);
-		}
-
-		// Verify customer_id matches stored customer ID
-		if (razorpaySubscription.customer_id !== strapiUser.razorpayCustomerId) {
-			console.error(
-				`Customer ID mismatch: ${razorpaySubscription.customer_id} vs ${strapiUser.razorpayCustomerId}`,
-			);
-			return NextResponse.json(
-				{ error: "Subscription does not belong to this user" },
-				{ status: 403 },
-			);
-		}
-
-		// All checks passed - update user subscription status
-		const updateRes = await fetch(`${STRAPI_URL}/api/users/${strapiUser.id}`, {
-			method: "PUT",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${STRAPI_API_TOKEN}`,
-			},
-			body: JSON.stringify({
-				subscriptionTier: "pro",
-				razorpaySubscriptionId: subscriptionId,
-				razorpaySubscriptionStatus: razorpaySubscription.status,
-				razorpayPaymentId: paymentId || null,
-			}),
-		});
-
-		if (!updateRes.ok) {
-			console.error("Strapi update failed:", await updateRes.text());
-			return NextResponse.json(
-				{ error: "Failed to activate subscription" },
-				{ status: 500 },
-			);
-		}
-
-		console.log(
-			`Subscription verified for user ${user.id}: ${subscriptionId} (status: ${razorpaySubscription.status})`,
-		);
-
-		return NextResponse.json({
-			success: true,
-			message: "Subscription activated",
-		});
 	} catch (error) {
 		console.error("Subscription verification error:", error);
 		return NextResponse.json(

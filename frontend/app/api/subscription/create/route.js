@@ -8,12 +8,13 @@ const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 const RAZORPAY_PLAN_ID = process.env.RAZORPAY_PLAN_ID;
-const TWENTY_FOUR_HOURS = 24 * 60 * 60;
 
 const RAZORPAY_API_BASE = "https://api.razorpay.com/v1";
 
 async function razorpayFetch(endpoint, method = "GET", body = null) {
-	const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
+	const auth = Buffer.from(
+		`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`,
+	).toString("base64");
 
 	const options = {
 		method,
@@ -96,7 +97,9 @@ export async function POST(req) {
 			console.log("Searching for existing customer by email...");
 			try {
 				// Try to fetch customer by email using Razorpay's customer list API
-				const customers = await razorpayFetch(`/customers?email=${encodeURIComponent(email)}`);
+				const customers = await razorpayFetch(
+					`/customers?email=${encodeURIComponent(email)}`,
+				);
 				if (customers.items && customers.items.length > 0) {
 					customerId = customers.items[0].id;
 					console.log("Found existing customer:", customerId);
@@ -132,7 +135,9 @@ export async function POST(req) {
 				console.error("Customer creation failed:", customerError);
 				return NextResponse.json(
 					{
-						error: customerError.error?.description || "Failed to create Razorpay customer",
+						error:
+							customerError.error?.description ||
+							"Failed to create Razorpay customer",
 						details: customerError.error,
 					},
 					{ status: customerError.statusCode || 500 },
@@ -150,49 +155,60 @@ export async function POST(req) {
 			);
 		}
 
-		console.log("Creating subscription for customer:", customerId);
+		// Fetch plan details
+		console.log("Fetching plan details:", RAZORPAY_PLAN_ID);
+		const plan = await razorpayFetch(`/plans/${RAZORPAY_PLAN_ID}`);
+		console.log("Plan amount:", plan.item?.amount, "paise");
 
-		// Calculate start date (24 hours from now)
-		const startAt = Math.floor(Date.now() / 1000) + TWENTY_FOUR_HOURS;
+		// Validate plan has a valid amount
+		const planAmount = plan.item?.amount;
+		if (!planAmount || typeof planAmount !== "number" || planAmount <= 0) {
+			console.error("Invalid plan amount:", planAmount);
+			return NextResponse.json(
+				{ error: "Invalid plan configuration: missing or invalid amount" },
+				{ status: 500 },
+			);
+		}
 
-		// Create subscription in 'created' status (pending payment)
-		const subscription = await razorpayFetch("/subscriptions", "POST", {
-			customer_id: customerId,
-			plan_id: RAZORPAY_PLAN_ID,
-			total_count: 12,
-			quantity: 1,
-			customer_notify: 1,
-			notify_info: { email },
-			start_at: startAt,
-		});
+		if (!process.env.NEXT_PUBLIC_APP_URL) {
+			return NextResponse.json(
+				{ error: "Server misconfiguration: callback URL not set" },
+				{ status: 500 },
+			);
+		}
 
-		console.log("Subscription created:", subscription.id);
-		console.log("Subscription status:", subscription.status);
-
-		// Generate invoice for checkout
-		// Invoice provides a checkout URL for the customer to complete payment
+		// Create a Payment Link for the subscription
+		// Payment Links provide a hosted checkout page
 		const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/subscription/callback`;
-		const invoice = await razorpayFetch("/invoices", "POST", {
-			type: "invoice",
+		const paymentLink = await razorpayFetch("/payment_links", "POST", {
+			amount: planAmount,
+			currency: "INR",
+			description: plan.item?.description || "Monthly Subscription - Head Chef Pro",
 			customer_id: customerId,
-			subscription_id: subscription.id,
-			expire_by: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 7 days
 			callback_url: callbackUrl,
+			expire_by: Math.floor(Date.now() / 1000) + 1800, // 30 minutes expiry
+			notes: {
+				subscription_type: "monthly",
+				user_id: user.id,
+			},
 		});
 
-		console.log("Invoice created:", invoice.id);
-		console.log("Invoice short URL:", invoice.short_url);
+		console.log("Payment Link created:", paymentLink.id);
+		console.log("Payment Link short URL:", paymentLink.short_url);
 
 		return NextResponse.json({
 			success: true,
-			subscriptionId: subscription.id,
-			authUrl: invoice.short_url,
+			subscriptionId: paymentLink.id,
+			authUrl: paymentLink.short_url,
 		});
 	} catch (error) {
 		console.error("Subscription creation error:", error);
 		return NextResponse.json(
 			{
-				error: error.error?.description || error.message || "Failed to create subscription",
+				error:
+					error.error?.description ||
+					error.message ||
+					"Failed to create subscription",
 				details: error.error || null,
 			},
 			{ status: error.statusCode || 500 },
