@@ -13,7 +13,6 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -23,6 +22,15 @@ export default function PricingSection({ subscriptionTier = "free", isModal = fa
 	const [isLoading, setIsLoading] = useState(false);
 	const { user } = useUser();
     const router = useRouter();
+
+	const handleGetStarted = () => {
+		if (isModal && onClose) {
+			onClose(); // Close modal
+			router.push("/dashboard"); // Navigate to dashboard
+		} else {
+			router.push("/dashboard"); // Just navigate
+		}
+	};
 
 	const handleSubscribe = async () => {
 		if (!user) return;
@@ -129,24 +137,13 @@ export default function PricingSection({ subscriptionTier = "free", isModal = fa
 					</CardContent>
 
 					<CardFooter className={"mt-auto"}>
-						{isModal && onClose ? (
-							<Button
-								variant="outline"
-								className="w-full border-2 border-stone-900 hover:bg-stone-900 hover:text-white"
-								onClick={onClose}
-							>
-								Get Started
-							</Button>
-						) : (
-							<Link href="/dashboard" className="w-full">
-								<Button
-									variant="outline"
-									className="w-full border-2 border-stone-900 hover:bg-stone-900 hover:text-white"
-								>
-									Get Started
-								</Button>
-							</Link>
-						)}
+						<Button
+							variant="outline"
+							className="w-full border-2 border-stone-900 hover:bg-stone-900 hover:text-white"
+							onClick={handleGetStarted}
+						>
+							Get Started
+						</Button>
 					</CardFooter>
 				</Card>
 
