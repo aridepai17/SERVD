@@ -92,7 +92,7 @@ function handleCallback({
 		const expectedSignature = crypto
 			.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
 			.update(
-				`${razorpayPaymentLinkId}|${razorpayPaymentLinkReferenceId}|${razorpayPaymentLinkStatus}|${razorpayPaymentId}`,
+				`${razorpaySubscriptionId}|${razorpayPaymentLinkReferenceId}|${razorpayPaymentLinkStatus}|${razorpayPaymentId}`,
 			)
 			.digest("hex");
 
@@ -159,20 +159,14 @@ function handleCallback({
 }
 
 function handleCallbackError(error) {
-	// Safely get base URL, with fallback for errors
 	let baseUrl;
 	try {
 		baseUrl = getBaseUrl();
-	} catch (baseError) {
-		// If NEXT_PUBLIC_APP_URL is missing, return 500 error
-		if (baseError.message === "NEXT_PUBLIC_APP_URL is not configured") {
-			return new NextResponse("Server misconfiguration", { status: 500 });
-		}
-		// For other errors, use fallback URL
-		baseUrl = "/subscription/verify";
+	} catch {
+		return new NextResponse("Server misconfiguration", { status: 500 });
 	}
 
-	const verifyUrl = new URL(baseUrl);
+	const verifyUrl = new URL("/subscription/verify", baseUrl);
 	verifyUrl.searchParams.set("error_code", "callback_error");
 	verifyUrl.searchParams.set(
 		"error_description",
