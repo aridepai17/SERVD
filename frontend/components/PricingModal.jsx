@@ -12,7 +12,7 @@ export default function PricingModal({ subscriptionTier = "free", children }) {
 			<DialogTrigger asChild>
 				{children}
 			</DialogTrigger>
-			<DialogContent className="p-4 sm:p-6 pt-10 sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+			<DialogContent showCloseButton={false} className="p-4 sm:p-6 pt-10 sm:max-w-4xl max-h-[90vh] overflow-y-auto">
 				<DialogTitle className="sr-only">Pricing Plans</DialogTitle>
 				{/* Close button for mobile */}
 				<button
