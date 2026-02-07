@@ -39,8 +39,15 @@ export async function GET(req) {
 
 		// Extract Razorpay's GET params (from Payment Links)
 		const razorpayPaymentId = searchParams.get("razorpay_payment_id");
-		const razorpayPaymentLinkId = searchParams.get("razorpay_payment_link_id");
-		const razorpayPaymentLinkStatus = searchParams.get("razorpay_payment_link_status");
+		const razorpayPaymentLinkId = searchParams.get(
+			"razorpay_payment_link_id",
+		);
+		const razorpayPaymentLinkReferenceId = searchParams.get(
+			"razorpay_payment_link_reference_id",
+		);
+		const razorpayPaymentLinkStatus = searchParams.get(
+			"razorpay_payment_link_status",
+		);
 		const razorpaySignature = searchParams.get("razorpay_signature");
 		const errorCode = searchParams.get("error_code");
 		const errorDescription = searchParams.get("error_description");
@@ -48,15 +55,21 @@ export async function GET(req) {
 		console.log("Payment Link callback received:");
 		console.log("- Payment ID:", razorpayPaymentId);
 		console.log("- Payment Link ID:", razorpayPaymentLinkId);
+		console.log(
+			"- Payment Link Reference ID:",
+			razorpayPaymentLinkReferenceId,
+		);
 		console.log("- Status:", razorpayPaymentLinkStatus);
 
 		return handleCallback({
-			razorpaySubscriptionId: razorpayPaymentLinkId, // Use payment link ID as subscription ID
+			razorpaySubscriptionId: razorpayPaymentLinkId,
 			razorpayPaymentId,
 			razorpaySignature,
 			errorCode,
 			errorDescription,
 			isPaymentLink: true,
+			razorpayPaymentLinkReferenceId,
+			razorpayPaymentLinkStatus,
 		});
 	} catch (error) {
 		console.error("Callback error:", error);
@@ -71,16 +84,45 @@ function handleCallback({
 	errorCode,
 	errorDescription,
 	isPaymentLink = false,
+	razorpayPaymentLinkReferenceId = null,
+	razorpayPaymentLinkStatus = null,
 }) {
-	// Verify signature (skip if error callback or payment link)
-	if (razorpayPaymentId && razorpaySignature && !isPaymentLink) {
+	// Verify signature for Payment Links
+	if (isPaymentLink && razorpayPaymentId && razorpaySignature) {
+		const expectedSignature = crypto
+			.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+			.update(
+				`${razorpayPaymentLinkId}|${razorpayPaymentLinkReferenceId}|${razorpayPaymentLinkStatus}|${razorpayPaymentId}`,
+			)
+			.digest("hex");
+
+		if (expectedSignature !== razorpaySignature) {
+			console.log("Invalid Razorpay signature in Payment Link callback");
+			const baseUrl = getBaseUrl();
+			const verifyUrl = new URL("/subscription/verify", baseUrl);
+			verifyUrl.searchParams.set("error_code", "signature_invalid");
+			verifyUrl.searchParams.set(
+				"error_description",
+				"Payment verification failed",
+			);
+			return NextResponse.redirect(verifyUrl.toString(), 303);
+		}
+	}
+
+	// Verify signature for Subscriptions
+	if (
+		!isPaymentLink &&
+		razorpayPaymentId &&
+		razorpaySignature &&
+		razorpaySubscriptionId
+	) {
 		const expectedSignature = crypto
 			.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
 			.update(`${razorpayPaymentId}|${razorpaySubscriptionId}`)
 			.digest("hex");
 
 		if (expectedSignature !== razorpaySignature) {
-			console.log("Invalid Razorpay signature in callback");
+			console.log("Invalid Razorpay signature in subscription callback");
 			const baseUrl = getBaseUrl();
 			const verifyUrl = new URL("/subscription/verify", baseUrl);
 			verifyUrl.searchParams.set("error_code", "signature_invalid");
@@ -101,10 +143,7 @@ function handleCallback({
 	const verifyUrl = new URL("/subscription/verify", baseUrl);
 
 	if (razorpaySubscriptionId) {
-		verifyUrl.searchParams.set(
-			"subscription_id",
-			razorpaySubscriptionId,
-		);
+		verifyUrl.searchParams.set("subscription_id", razorpaySubscriptionId);
 	}
 	if (razorpayPaymentId) {
 		verifyUrl.searchParams.set("payment_id", razorpayPaymentId);
@@ -120,12 +159,20 @@ function handleCallback({
 }
 
 function handleCallbackError(error) {
-	if (error.message === "NEXT_PUBLIC_APP_URL is not configured") {
-		return new NextResponse("Server misconfiguration", { status: 500 });
+	// Safely get base URL, with fallback for errors
+	let baseUrl;
+	try {
+		baseUrl = getBaseUrl();
+	} catch (baseError) {
+		// If NEXT_PUBLIC_APP_URL is missing, return 500 error
+		if (baseError.message === "NEXT_PUBLIC_APP_URL is not configured") {
+			return new NextResponse("Server misconfiguration", { status: 500 });
+		}
+		// For other errors, use fallback URL
+		baseUrl = "/subscription/verify";
 	}
 
-	const baseUrl = getBaseUrl();
-	const verifyUrl = new URL("/subscription/verify", baseUrl);
+	const verifyUrl = new URL(baseUrl);
 	verifyUrl.searchParams.set("error_code", "callback_error");
 	verifyUrl.searchParams.set(
 		"error_description",
