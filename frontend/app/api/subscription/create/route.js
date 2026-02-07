@@ -12,7 +12,9 @@ const RAZORPAY_PLAN_ID = process.env.RAZORPAY_PLAN_ID;
 const RAZORPAY_API_BASE = "https://api.razorpay.com/v1";
 
 async function razorpayFetch(endpoint, method = "GET", body = null) {
-	const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
+	const auth = Buffer.from(
+		`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`,
+	).toString("base64");
 
 	const options = {
 		method,
@@ -95,7 +97,9 @@ export async function POST(req) {
 			console.log("Searching for existing customer by email...");
 			try {
 				// Try to fetch customer by email using Razorpay's customer list API
-				const customers = await razorpayFetch(`/customers?email=${encodeURIComponent(email)}`);
+				const customers = await razorpayFetch(
+					`/customers?email=${encodeURIComponent(email)}`,
+				);
 				if (customers.items && customers.items.length > 0) {
 					customerId = customers.items[0].id;
 					console.log("Found existing customer:", customerId);
@@ -131,7 +135,9 @@ export async function POST(req) {
 				console.error("Customer creation failed:", customerError);
 				return NextResponse.json(
 					{
-						error: customerError.error?.description || "Failed to create Razorpay customer",
+						error:
+							customerError.error?.description ||
+							"Failed to create Razorpay customer",
 						details: customerError.error,
 					},
 					{ status: customerError.statusCode || 500 },
@@ -154,16 +160,25 @@ export async function POST(req) {
 		const plan = await razorpayFetch(`/plans/${RAZORPAY_PLAN_ID}`);
 		console.log("Plan amount:", plan.item?.amount, "paise");
 
+		if (!process.env.NEXT_PUBLIC_APP_URL) {
+			return NextResponse.json(
+				{ error: "Server misconfiguration: callback URL not set" },
+				{ status: 500 },
+			);
+		}
+
 		// Create a Payment Link for the subscription
 		// Payment Links provide a hosted checkout page
 		const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/subscription/callback`;
 		const paymentLink = await razorpayFetch("/payment_links", "POST", {
 			amount: plan.item?.amount || 39900, // Use plan amount
 			currency: "INR",
-			description: plan.item?.description || "Monthly Subscription - Head Chef Pro",
+			description:
+				plan.item?.description ||
+				"Monthly Subscription - Head Chef Pro",
 			customer_id: customerId,
 			callback_url: callbackUrl,
-            expire_by: Math.floor(Date.now() / 1000) + 1800, // 30 minutes expiry
+			expire_by: Math.floor(Date.now() / 1000) + 1800, // 30 minutes expiry
 			notes: {
 				subscription_type: "monthly",
 				user_id: user.id,
@@ -182,7 +197,10 @@ export async function POST(req) {
 		console.error("Subscription creation error:", error);
 		return NextResponse.json(
 			{
-				error: error.error?.description || error.message || "Failed to create subscription",
+				error:
+					error.error?.description ||
+					error.message ||
+					"Failed to create subscription",
 				details: error.error || null,
 			},
 			{ status: error.statusCode || 500 },
