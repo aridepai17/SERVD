@@ -8,7 +8,6 @@ const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 const RAZORPAY_PLAN_ID = process.env.RAZORPAY_PLAN_ID;
-const TWENTY_FOUR_HOURS = 24 * 60 * 60;
 
 const RAZORPAY_API_BASE = "https://api.razorpay.com/v1";
 
@@ -150,43 +149,33 @@ export async function POST(req) {
 			);
 		}
 
-		console.log("Creating subscription for customer:", customerId);
+		// Fetch plan details
+		console.log("Fetching plan details:", RAZORPAY_PLAN_ID);
+		const plan = await razorpayFetch(`/plans/${RAZORPAY_PLAN_ID}`);
+		console.log("Plan amount:", plan.item?.amount, "paise");
 
-		// Calculate start date (24 hours from now)
-		const startAt = Math.floor(Date.now() / 1000) + TWENTY_FOUR_HOURS;
-
-		// Create subscription in 'created' status (pending payment)
-		const subscription = await razorpayFetch("/subscriptions", "POST", {
-			customer_id: customerId,
-			plan_id: RAZORPAY_PLAN_ID,
-			total_count: 12,
-			quantity: 1,
-			customer_notify: 1,
-			notify_info: { email },
-			start_at: startAt,
-		});
-
-		console.log("Subscription created:", subscription.id);
-		console.log("Subscription status:", subscription.status);
-
-		// Generate invoice for checkout
-		// Invoice provides a checkout URL for the customer to complete payment
+		// Create a Payment Link for the subscription
+		// Payment Links provide a hosted checkout page
 		const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/subscription/callback`;
-		const invoice = await razorpayFetch("/invoices", "POST", {
-			type: "invoice",
+		const paymentLink = await razorpayFetch("/payment_links", "POST", {
+			amount: plan.item?.amount || 39900, // Use plan amount
+			currency: "INR",
+			description: plan.item?.description || "Monthly Subscription - Head Chef Pro",
 			customer_id: customerId,
-			subscription_id: subscription.id,
-			expire_by: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 7 days
 			callback_url: callbackUrl,
+			notes: {
+				subscription_type: "monthly",
+				user_id: user.id,
+			},
 		});
 
-		console.log("Invoice created:", invoice.id);
-		console.log("Invoice short URL:", invoice.short_url);
+		console.log("Payment Link created:", paymentLink.id);
+		console.log("Payment Link short URL:", paymentLink.short_url);
 
 		return NextResponse.json({
 			success: true,
-			subscriptionId: subscription.id,
-			authUrl: invoice.short_url,
+			subscriptionId: paymentLink.id,
+			authUrl: paymentLink.short_url,
 		});
 	} catch (error) {
 		console.error("Subscription creation error:", error);
