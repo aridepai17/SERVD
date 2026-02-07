@@ -77,6 +77,22 @@ export async function GET(req) {
 	}
 }
 
+function verifySignature(expectedSignature, razorpaySignature) {
+	// Use timing-safe comparison for signature verification
+	try {
+		const expectedBuffer = Buffer.from(expectedSignature, "hex");
+		const actualBuffer = Buffer.from(razorpaySignature, "hex");
+		// timingSafeEqual requires both buffers to be the same length
+		if (expectedBuffer.length !== actualBuffer.length) {
+			return false;
+		}
+		return crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+	} catch {
+		// Invalid hex or length mismatch
+		return false;
+	}
+}
+
 function handleCallback({
 	razorpaySubscriptionId,
 	razorpayPaymentId,
@@ -96,7 +112,7 @@ function handleCallback({
 			)
 			.digest("hex");
 
-		if (expectedSignature !== razorpaySignature) {
+		if (!verifySignature(expectedSignature, razorpaySignature)) {
 			console.log("Invalid Razorpay signature in Payment Link callback");
 			const baseUrl = getBaseUrl();
 			const verifyUrl = new URL("/subscription/verify", baseUrl);
@@ -121,7 +137,7 @@ function handleCallback({
 			.update(`${razorpayPaymentId}|${razorpaySubscriptionId}`)
 			.digest("hex");
 
-		if (expectedSignature !== razorpaySignature) {
+		if (!verifySignature(expectedSignature, razorpaySignature)) {
 			console.log("Invalid Razorpay signature in subscription callback");
 			const baseUrl = getBaseUrl();
 			const verifyUrl = new URL("/subscription/verify", baseUrl);
