@@ -163,6 +163,7 @@ export async function POST(req) {
 			description: plan.item?.description || "Monthly Subscription - Head Chef Pro",
 			customer_id: customerId,
 			callback_url: callbackUrl,
+            expire_by: Math.floor(Date.now() / 1000) + 1800, // 30 minutes expiry
 			notes: {
 				subscription_type: "monthly",
 				user_id: user.id,
