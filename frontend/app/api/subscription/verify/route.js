@@ -61,11 +61,31 @@ export async function POST(req) {
 
 		const { subscriptionId, paymentId } = body;
 
-		if (!subscriptionId && !paymentId) {
-			return NextResponse.json(
-				{ error: "Subscription ID or Payment ID required" },
-				{ status: 400 },
-			);
+		// Validate IDs based on type
+		// Payment Links (plink_*) require paymentId
+		// Subscriptions require subscriptionId
+		// Standalone payments require paymentId
+		const isPaymentLink = subscriptionId?.startsWith("plink_");
+
+		if (isPaymentLink) {
+			// Payment Link verification requires paymentId
+			if (!paymentId) {
+				return NextResponse.json(
+					{ error: "Payment ID required for Payment Link verification" },
+					{ status: 400 },
+				);
+			}
+		} else if (subscriptionId) {
+			// Have subscriptionId and it's not a Payment Link - valid for subscription verification
+			// Continue to subscription verification
+		} else {
+			// No subscriptionId but may have paymentId for standalone payment
+			if (!paymentId) {
+				return NextResponse.json(
+					{ error: "Subscription ID or Payment ID required" },
+					{ status: 400 },
+				);
+			}
 		}
 
 		// Find user in Strapi
@@ -89,8 +109,6 @@ export async function POST(req) {
 		}
 
 		// Check if this is a subscription or payment link
-		const isPaymentLink = subscriptionId?.startsWith("plink_");
-
 		if (isPaymentLink) {
 			// Verify payment link payment
 			let payment;
@@ -105,7 +123,8 @@ export async function POST(req) {
 			}
 
 			// Verify payment status
-			if (payment.status !== "captured") {
+			const validPaymentStatuses = ["authorized", "captured"];
+			if (!validPaymentStatuses.includes(payment.status)) {
 				console.error(`Invalid payment status: ${payment.status}`);
 				return NextResponse.json(
 					{ error: `Payment not completed: ${payment.status}` },
@@ -133,7 +152,8 @@ export async function POST(req) {
 				},
 				body: JSON.stringify({
 					subscriptionTier: "pro",
-					razorpaySubscriptionId: subscriptionId,
+					razorpaySubscriptionId: isPaymentLink ? null : subscriptionId,
+					razorpayPaymentLinkId: isPaymentLink ? subscriptionId : null,
 					razorpaySubscriptionStatus: "active",
 					razorpayPaymentId: paymentId,
 				}),
