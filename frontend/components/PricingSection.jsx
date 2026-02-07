@@ -17,7 +17,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
-export default function PricingSection({ subscriptionTier = "free" }) {
+export default function PricingSection({ subscriptionTier = "free", isModal = false, onClose }) {
 	// INR pricing - ₹399 (marketing pricing)
 	const PRO_PRICE_INR = 399;
 	const [isLoading, setIsLoading] = useState(false);
@@ -129,14 +129,24 @@ export default function PricingSection({ subscriptionTier = "free" }) {
 					</CardContent>
 
 					<CardFooter className={"mt-auto"}>
-						<Link href="/dashboard" className="w-full">
+						{isModal && onClose ? (
 							<Button
 								variant="outline"
 								className="w-full border-2 border-stone-900 hover:bg-stone-900 hover:text-white"
+								onClick={onClose}
 							>
 								Get Started
 							</Button>
-						</Link>
+						) : (
+							<Link href="/dashboard" className="w-full">
+								<Button
+									variant="outline"
+									className="w-full border-2 border-stone-900 hover:bg-stone-900 hover:text-white"
+								>
+									Get Started
+								</Button>
+							</Link>
+						)}
 					</CardFooter>
 				</Card>
 
