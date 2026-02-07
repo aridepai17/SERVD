@@ -160,6 +160,16 @@ export async function POST(req) {
 		const plan = await razorpayFetch(`/plans/${RAZORPAY_PLAN_ID}`);
 		console.log("Plan amount:", plan.item?.amount, "paise");
 
+		// Validate plan has a valid amount
+		const planAmount = plan.item?.amount;
+		if (!planAmount || typeof planAmount !== "number" || planAmount <= 0) {
+			console.error("Invalid plan amount:", planAmount);
+			return NextResponse.json(
+				{ error: "Invalid plan configuration: missing or invalid amount" },
+				{ status: 500 },
+			);
+		}
+
 		if (!process.env.NEXT_PUBLIC_APP_URL) {
 			return NextResponse.json(
 				{ error: "Server misconfiguration: callback URL not set" },
@@ -171,11 +181,9 @@ export async function POST(req) {
 		// Payment Links provide a hosted checkout page
 		const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/subscription/callback`;
 		const paymentLink = await razorpayFetch("/payment_links", "POST", {
-			amount: plan.item?.amount || 39900, // Use plan amount
+			amount: planAmount,
 			currency: "INR",
-			description:
-				plan.item?.description ||
-				"Monthly Subscription - Head Chef Pro",
+			description: plan.item?.description || "Monthly Subscription - Head Chef Pro",
 			customer_id: customerId,
 			callback_url: callbackUrl,
 			expire_by: Math.floor(Date.now() / 1000) + 1800, // 30 minutes expiry
