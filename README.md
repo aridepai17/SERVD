@@ -164,7 +164,9 @@ SERVD/
 
 ---
 
-## Architecture
+## 🏗️ Architecture
+
+![Architecture Diagram](frontend/screenshot/architecture.png)
 
 ### High-Level Architecture
 
