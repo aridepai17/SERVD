@@ -188,8 +188,8 @@ export async function POST(req) {
 				);
 			}
 
-			// Verify subscription status
-			const validStatuses = ["active", "authenticated", "pending"];
+			// Verify subscription status - only confirmed statuses grant Pro access
+			const validStatuses = ["active", "authenticated"];
 			if (!validStatuses.includes(razorpaySubscription.status)) {
 				console.error(`Invalid subscription status: ${razorpaySubscription.status}`);
 				return NextResponse.json(
