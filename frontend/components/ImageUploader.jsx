@@ -73,6 +73,7 @@ export default function ImageUploader({ onImageSelect, loading }) {
 					alt="Pantry preview"
 					fill
 					className="object-cover"
+					sizes="(max-width: 768px) 100vw, 400px"
 				/>
 				{!loading && (
 					<button
