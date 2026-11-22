@@ -1,8 +1,7 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "../components/Header";
-import { ClerkProvider } from "@clerk/nextjs";
-import { neobrutalism } from "@clerk/themes";
+import ClerkProviderWrapper from "@/components/ClerkProviderWrapper";
 import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
@@ -19,7 +18,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
 	return (
-		<ClerkProvider appearance={{ baseTheme: neobrutalism }}>
+		<ClerkProviderWrapper>
 			<html lang="en" suppressHydrationWarning>
 				<body className={`${inter.className}`}>
 					<Header />
@@ -35,6 +34,6 @@ export default function RootLayout({ children }) {
 					</footer>
 				</body>
 			</html>
-		</ClerkProvider>
+		</ClerkProviderWrapper>
 	);
 }
