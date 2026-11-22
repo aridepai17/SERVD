@@ -142,9 +142,9 @@ export default async function DashboardPage() {
 					</div>
 
 					<div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-						{categories.map((category) => (
+						{categories.map((category, index) => (
 							<Link
-								key={category.strCategory}
+								key={`${category.strCategory}-${index}`}
 								href={`/recipes/category/${category.strCategory.toLowerCase()}`}
 							>
 								<div className="bg-white p-6 border-2 border-stone-200 hover:border-orange-600 hover:shadow-lg transition-all text-center group cursor-pointer">
@@ -172,9 +172,9 @@ export default async function DashboardPage() {
 					</div>
 
 					<div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-						{areas.map((area) => (
+						{areas.map((area, index) => (
 							<Link
-								key={area.strArea}
+								key={`${area.strArea}-${index}`}
 								href={`/recipes/cuisine/${area.strArea
 									.toLowerCase()
 									.replace(/\s+/g, "-")}`}
