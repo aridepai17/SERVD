@@ -1,17 +1,20 @@
 "use server";
 
 import { checkUser } from "@/lib/checkUser";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import { freeMealRecommendations, proTierLimit } from "@/lib/arcjet";
 import { request } from "@arcjet/next";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const STRAPI_URL =
 	process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
 
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const openai = new OpenAI({
+	apiKey: GROQ_API_KEY,
+	baseURL: "https://api.groq.com/openai/v1",
+});
 
 // Helper function to normalize recipe title
 function normalizeTitle(title) {
@@ -23,6 +26,56 @@ function normalizeTitle(title) {
 				word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
 		)
 		.join(" ");
+}
+
+// Extract a JSON object or array from model text that may include markdown
+// fences or surrounding prose. Returns the substring between the first
+// opening bracket and its matching closing bracket.
+function extractJsonFromText(text) {
+	let start = text.indexOf("{");
+	let arrayStart = text.indexOf("[");
+
+	let startChar = "{";
+	let endChar = "}";
+	if (arrayStart !== -1 && (start === -1 || arrayStart < start)) {
+		start = arrayStart;
+		startChar = "[";
+		endChar = "]";
+	}
+
+	if (start === -1) {
+		return text.trim();
+	}
+
+	let depth = 0;
+	let inString = false;
+	let escape = false;
+	for (let i = start; i < text.length; i++) {
+		const ch = text[i];
+		if (escape) {
+			escape = false;
+			continue;
+		}
+		if (inString) {
+			if (ch === "\\") {
+				escape = true;
+			} else if (ch === '"') {
+				inString = false;
+			}
+			continue;
+		}
+		if (ch === '"') {
+			inString = true;
+		} else if (ch === startChar) {
+			depth++;
+		} else if (ch === endChar) {
+			depth--;
+			if (depth === 0) {
+				return text.slice(start, i + 1);
+			}
+		}
+	}
+	return text.trim();
 }
 
 function maskToken(token) {
@@ -154,9 +207,9 @@ async function fetchRecipeImage(recipeName) {
 export async function getOrGenerateRecipe(formData) {
 	try {
 		const user = await checkUser();
-		if (!user) {
-			throw new Error("User not authenticated");
-		}
+		// Strapi may be unavailable or misconfigured (e.g. missing STRAPI_API_TOKEN).
+		// Degrade gracefully so the recipe page still renders instead of 500ing.
+		const isPro = user ? user.subscriptionTier === "pro" : false;
 
 		const recipeName = formData.get("recipeName");
 		if (!recipeName) {
@@ -167,10 +220,16 @@ export async function getOrGenerateRecipe(formData) {
 		const normalizedTitle = normalizeTitle(recipeName);
 		console.log("🔍 Searching for recipe:", normalizedTitle);
 
-		const isPro = user.subscriptionTier === "pro";
-
 		// Step 1: Check if recipe already exists in DB (case-insensitive search)
-		const existingRecipe = await fetchRecipeByTitle(normalizedTitle);
+		let existingRecipe = null;
+		try {
+			existingRecipe = await fetchRecipeByTitle(normalizedTitle);
+		} catch (strapiErr) {
+			console.warn(
+				"⚠️ Strapi search unavailable, proceeding to generate:",
+				strapiErr?.message || String(strapiErr),
+			);
+		}
 		if (existingRecipe) {
 			let normalizedRecipe = existingRecipe.attributes
 				? { id: existingRecipe.id, ...existingRecipe.attributes }
@@ -186,7 +245,7 @@ export async function getOrGenerateRecipe(formData) {
 			const recipeId = normalizedRecipe.id ?? existingRecipe.id;
 			console.log("✅ Recipe found in database:", existingRecipe.id);
 
-			const isSaved = await isRecipeSavedForUser(user.id, recipeId);
+			const isSaved = user ? await isRecipeSavedForUser(user.id, recipeId) : false;
 
 			return {
 				success: true,
@@ -199,12 +258,8 @@ export async function getOrGenerateRecipe(formData) {
 			};
 		}
 
-		// Step 2: Recipe doesn't exist, generate with Gemini
-		console.log("🤖 Recipe not found, generating with Gemini...");
-
-		const model = genAI.getGenerativeModel({
-			model: "gemini-2.5-flash",
-		});
+		// Step 2: Recipe doesn't exist, generate with Groq
+		console.log("🤖 Recipe not found, generating with Groq...");
 
 		const prompt = `
 You are a professional chef and recipe expert. Generate a detailed recipe for: "${normalizedTitle}"
@@ -275,20 +330,19 @@ Guidelines:
 - Keep total instructions under 12 steps
 `;
 
-		const result = await model.generateContent(prompt);
-		const response = await result.response;
-		const text = response.text();
+		const completion = await openai.chat.completions.create({
+			model: "openai/gpt-oss-20b",
+			max_tokens: 4096,
+			messages: [{ role: "user", content: prompt }],
+		});
+		const text = completion.choices[0].message.content;
 
 		// Parse JSON response
 		let recipeData;
 		try {
-			const cleanText = text
-				.replace(/```json\n?/g, "")
-				.replace(/```\n?/g, "")
-				.trim();
-			recipeData = JSON.parse(cleanText);
+			recipeData = JSON.parse(extractJsonFromText(text));
 		} catch (parseError) {
-			console.error("Failed to parse Gemini response:", text);
+			console.error("Failed to parse Groq response:", text);
 			throw new Error("Failed to generate recipe. Please try again.");
 		}
 
@@ -364,7 +418,7 @@ Guidelines:
 				substitutions: recipeData.substitutions,
 				ImageUrl: imageUrl,
 				isPublic: true,
-				author: user.id,
+				...(user ? { author: user.id } : {}),
 			},
 		};
 
@@ -373,63 +427,77 @@ Guidelines:
 			normalizedTitle,
 		);
 
-		const createRecipeResponse = await fetch(`${STRAPI_URL}/api/recipes`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${STRAPI_API_TOKEN}`,
-			},
-			body: JSON.stringify(strapiRecipeData),
-		});
+		let createdRecipeId = null;
+		try {
+			const createRecipeResponse = await fetch(`${STRAPI_URL}/api/recipes`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+				},
+				body: JSON.stringify(strapiRecipeData),
+			});
 
-		if (!createRecipeResponse.ok) {
-			if (createRecipeResponse.status === 409) {
-				console.warn(
-					"⚠️ Recipe already exists, fetching existing record:",
-					normalizedTitle,
-				);
-				const existingRecipe =
-					await fetchRecipeByTitle(normalizedTitle);
-				if (existingRecipe) {
-					let normalizedRecipe = existingRecipe.attributes
-						? {
-								id: existingRecipe.id,
-								...existingRecipe.attributes,
-							}
-						: existingRecipe;
-					// Normalize ImageUrl to imageUrl for frontend compatibility
-					if (normalizedRecipe.ImageUrl && !normalizedRecipe.imageUrl) {
-						normalizedRecipe = {
-							...normalizedRecipe,
-							imageUrl: normalizedRecipe.ImageUrl,
-						};
-						delete normalizedRecipe.ImageUrl;
-					}
-					const isSaved = await isRecipeSavedForUser(
-						user.id,
-						normalizedRecipe.id ?? existingRecipe.id,
+			if (!createRecipeResponse.ok) {
+				if (createRecipeResponse.status === 409) {
+					console.warn(
+						"⚠️ Recipe already exists, fetching existing record:",
+						normalizedTitle,
 					);
-					return {
-						success: true,
-						recipe: normalizedRecipe,
-						recipeId: normalizedRecipe.id ?? existingRecipe.id,
-						isSaved,
-						fromDatabase: true,
-						isPro,
-						message: "Recipe already existed; loaded from database",
-					};
+					const existingRecipe =
+						await fetchRecipeByTitle(normalizedTitle);
+					if (existingRecipe) {
+						let normalizedRecipe = existingRecipe.attributes
+							? {
+									id: existingRecipe.id,
+									...existingRecipe.attributes,
+								}
+							: existingRecipe;
+						// Normalize ImageUrl to imageUrl for frontend compatibility
+						if (normalizedRecipe.ImageUrl && !normalizedRecipe.imageUrl) {
+							normalizedRecipe = {
+								...normalizedRecipe,
+								imageUrl: normalizedRecipe.ImageUrl,
+							};
+							delete normalizedRecipe.ImageUrl;
+						}
+						const isSaved = user
+							? await isRecipeSavedForUser(
+									user.id,
+									normalizedRecipe.id ?? existingRecipe.id,
+								)
+							: false;
+						return {
+							success: true,
+							recipe: normalizedRecipe,
+							recipeId: normalizedRecipe.id ?? existingRecipe.id,
+							isSaved,
+							fromDatabase: true,
+							isPro,
+							message: "Recipe already existed; loaded from database",
+						};
+					}
+					throw new Error(
+						"Recipe already exists but could not be fetched",
+					);
 				}
-				throw new Error(
-					"Recipe already exists but could not be fetched",
-				);
+				const errorText = await createRecipeResponse.text();
+				console.error("❌ Failed to save recipe:", errorText);
+				throw new Error("Failed to save recipe to database");
 			}
-			const errorText = await createRecipeResponse.text();
-			console.error("❌ Failed to save recipe:", errorText);
-			throw new Error("Failed to save recipe to database");
-		}
 
-		const createdRecipe = await createRecipeResponse.json();
-		console.log("✅ Recipe saved to database:", createdRecipe.data.id);
+			const createdRecipe = await createRecipeResponse.json();
+			console.log("✅ Recipe saved to database:", createdRecipe.data.id);
+			createdRecipeId = createdRecipe.data.id;
+		} catch (saveErr) {
+			if (saveErr.message === "Recipe already exists but could not be fetched") {
+				throw saveErr;
+			}
+			console.warn(
+				"⚠️ Strapi save unavailable, returning generated recipe without saving:",
+				saveErr?.message || String(saveErr),
+			);
+		}
 
 		return {
 			success: true,
@@ -440,12 +508,14 @@ Guidelines:
 				cuisine,
 				imageUrl: imageUrl || "",
 			},
-			recipeId: createdRecipe.data.id,
+			recipeId: createdRecipeId,
 			isSaved: false,
 			fromDatabase: false,
 			recommendationsLimit: isPro ? "unlimited" : 5,
 			isPro,
-			message: "Recipe generated and saved successfully!",
+			message: createdRecipeId
+				? "Recipe generated and saved successfully!"
+				: "Recipe generated (could not save to database)",
 		};
 	} catch (error) {
 		console.error("❌ Error in getOrGenerateRecipe:", error);
@@ -700,11 +770,7 @@ export async function getRecipesByPantryIngredients() {
 		// Check if user is Pro for recommendations limit
 		const isPro = user.subscriptionTier === "pro";
 
-		// Generate recipe suggestions using Gemini
-		const model = genAI.getGenerativeModel({
-			model: "gemini-2.5-flash",
-		});
-
+		// Generate recipe suggestions using OpenAI
 		const prompt = `
 You are a professional chef and recipe expert. Based on these pantry ingredients: ${ingredientsUsed}
 
@@ -730,20 +796,19 @@ Rules:
 - Return 3-5 recipes max
 `;
 
-		const result = await model.generateContent(prompt);
-		const response = await result.response;
-		const text = response.text();
+		const completion = await openai.chat.completions.create({
+			model: "openai/gpt-oss-20b",
+			max_tokens: 4096,
+			messages: [{ role: "user", content: prompt }],
+		});
+		const text = completion.choices[0].message.content;
 
 		// Parse JSON response
 		let recipes;
 		try {
-			const cleanText = text
-				.replace(/```json\n?/g, "")
-				.replace(/```\n?/g, "")
-				.trim();
-			recipes = JSON.parse(cleanText);
+			recipes = JSON.parse(extractJsonFromText(text));
 		} catch (parseError) {
-			console.error("Failed to parse Gemini response:", text);
+			console.error("Failed to parse Groq response:", text);
 			throw new Error("Failed to generate recipe suggestions");
 		}
 
