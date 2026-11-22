@@ -1,16 +1,69 @@
 "use server";
 
 import { checkUser } from "@/lib/checkUser";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import { freePantryScans, proTierLimit } from "@/lib/arcjet";
 import { request } from "@arcjet/next";
 
 const STRAPI_URL =
 	process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const openai = new OpenAI({
+	apiKey: GROQ_API_KEY,
+	baseURL: "https://api.groq.com/openai/v1",
+});
+
+// Extract a JSON object or array from model text that may include markdown
+// fences or surrounding prose. Returns the substring between the first
+// opening bracket and its matching closing bracket.
+function extractJsonFromText(text) {
+	let start = text.indexOf("{");
+	let arrayStart = text.indexOf("[");
+
+	let startChar = "{";
+	let endChar = "}";
+	if (arrayStart !== -1 && (start === -1 || arrayStart < start)) {
+		start = arrayStart;
+		startChar = "[";
+		endChar = "]";
+	}
+
+	if (start === -1) {
+		return text.trim();
+	}
+
+	let depth = 0;
+	let inString = false;
+	let escape = false;
+	for (let i = start; i < text.length; i++) {
+		const ch = text[i];
+		if (escape) {
+			escape = false;
+			continue;
+		}
+		if (inString) {
+			if (ch === "\\") {
+				escape = true;
+			} else if (ch === '"') {
+				inString = false;
+			}
+			continue;
+		}
+		if (ch === '"') {
+			inString = true;
+		} else if (ch === startChar) {
+			depth++;
+		} else if (ch === endChar) {
+			depth--;
+			if (depth === 0) {
+				return text.slice(start, i + 1);
+			}
+		}
+	}
+	return text.trim();
+}
 
 // Scan image with Gemini Vision
 export async function scanPantryImage(formData) {
@@ -65,11 +118,7 @@ export async function scanPantryImage(formData) {
 		const buffer = Buffer.from(bytes);
 		const base64Image = buffer.toString("base64");
 
-		// Call Gemini Vision API
-		const model = genAI.getGenerativeModel({
-			model: "gemini-3-flash-preview",
-		});
-
+		// Call Groq Vision API
 		const prompt = `
 You are a professional chef and ingredient recognition expert. Analyze this image of a pantry/fridge and identify all visible food ingredients.
 
@@ -91,29 +140,32 @@ Rules:
 - Common pantry staples are acceptable (salt, pepper, oil)
 `;
 
-		const result = await model.generateContent([
-			prompt,
-			{
-				inlineData: {
-					mimeType: imageFile.type,
-					data: base64Image,
+		const completion = await openai.chat.completions.create({
+			model: "openai/gpt-oss-20b",
+			max_tokens: 2048,
+			messages: [
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: prompt },
+						{
+							type: "image_url",
+							image_url: {
+								url: `data:${imageFile.type};base64,${base64Image}`,
+							},
+						},
+					],
 				},
-			},
-		]);
-
-		const response = await result.response;
-		const text = response.text();
+			],
+		});
+		const text = completion.choices[0].message.content;
 
 		// Parse JSON response
 		let ingredients;
 		try {
-			const cleanText = text
-				.replace(/```json\n?/g, "")
-				.replace(/```\n?/g, "")
-				.trim();
-			ingredients = JSON.parse(cleanText);
+			ingredients = JSON.parse(extractJsonFromText(text));
 		} catch (parseError) {
-			console.error("Failed to parse Gemini response:", text);
+			console.error("Failed to parse Groq response:", text);
 			throw new Error("Failed to parse ingredients. Please try again.");
 		}
 
