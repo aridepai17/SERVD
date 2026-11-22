@@ -2,8 +2,9 @@
 
 import React, { useState } from "react";
 import { Check } from "lucide-react";
-import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import {
 	Card,
 	CardContent,
@@ -20,7 +21,7 @@ export default function PricingSection({ subscriptionTier = "free", isModal = fa
 	// INR pricing - ₹399 (marketing pricing)
 	const PRO_PRICE_INR = 399;
 	const [isLoading, setIsLoading] = useState(false);
-	const { user } = useUser();
+	const { user, isSignedIn } = useAuth();
     const router = useRouter();
 
 	const handleGetStarted = () => {
@@ -87,6 +88,25 @@ export default function PricingSection({ subscriptionTier = "free", isModal = fa
 			setIsLoading(false);
 		}
 	};
+
+	const proFooterButtons = (
+		<>
+			<Button
+				disabled
+				className="w-full bg-green-600 text-white cursor-default"
+			>
+				Current Plan
+			</Button>
+			<Button
+				variant="outline"
+				onClick={handleCancelSubscription}
+				disabled={isLoading}
+				className="w-full border-2 border-red-600 text-red-600 hover:bg-red-50"
+			>
+				{isLoading ? "Cancelling..." : "Cancel Subscription"}
+			</Button>
+		</>
+	);
 
 	return (
 		<div className="max-w-6xl mx-auto">
@@ -192,43 +212,25 @@ export default function PricingSection({ subscriptionTier = "free", isModal = fa
 					</CardContent>
 
 					<CardFooter className="flex flex-col gap-3">
-						<SignedIn>
-							{subscriptionTier === "pro" ? (
-								<>
+						{isSignedIn ? (
+							subscriptionTier === "pro"
+								? proFooterButtons
+								: (
 									<Button
-										disabled
-										className="w-full bg-green-600 text-white cursor-default"
-									>
-										Current Plan
-									</Button>
-									<Button
-										variant="outline"
-										onClick={handleCancelSubscription}
+										onClick={handleSubscribe}
 										disabled={isLoading}
-										className="w-full border-2 border-red-600 text-red-600 hover:bg-red-50"
+										className="w-full bg-orange-600 hover:bg-orange-700 text-white"
 									>
-										{isLoading
-											? "Cancelling..."
-											: "Cancel Subscription"}
+										{isLoading ? "Loading..." : "Subscribe Now"}
 									</Button>
-								</>
-							) : (
-								<Button
-									onClick={handleSubscribe}
-									disabled={isLoading}
-									className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-								>
-									{isLoading ? "Loading..." : "Subscribe Now"}
-								</Button>
-							)}
-						</SignedIn>
-						<SignedOut>
-							<SignInButton mode="modal">
+								)
+						) : (
+							<Link href="/sign-in">
 								<Button variant="primary" className="w-full">
 									Login to Subscribe
 								</Button>
-							</SignInButton>
-						</SignedOut>
+							</Link>
+						)}
 					</CardFooter>
 				</Card>
 			</div>
