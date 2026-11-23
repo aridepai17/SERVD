@@ -12,21 +12,34 @@ export const checkUser = async () => {
 		return null;
 	}
 
-	if (!STRAPI_API_TOKEN) {
-		console.error("STRAPI_API_TOKEN is missing");
-		return null;
-	}
-
 	const { has } = await auth();
 	const subscriptionTier = has({ plan: "pro" }) ? "pro" : "free";
+
+	// Clerk fallback — returned when Strapi is unreachable (cold start, etc.)
+	const clerkFallback = {
+		id: user.id,
+		clerkId: user.id,
+		email: user.emailAddresses?.[0]?.emailAddress,
+		firstName: user.firstName || "",
+		lastName: user.lastName || "",
+		ImageUrl: user.imageUrl || "",
+		username: user.username || "",
+		subscriptionTier,
+		source: "clerk",
+	};
+
+	if (!STRAPI_API_TOKEN) {
+		console.error("STRAPI_API_TOKEN is missing, using Clerk fallback");
+		return clerkFallback;
+	}
 
 	try {
 		const primaryEmail = user.emailAddresses?.[0]?.emailAddress;
 		console.log("checkUser:", { clerkId: user.id, email: primaryEmail, tier: subscriptionTier });
-		
+
 		if (!primaryEmail) {
 			console.error("No email");
-			return null;
+			return clerkFallback;
 		}
 
 		// Search by clerkId
@@ -38,16 +51,15 @@ export const checkUser = async () => {
 
 		if (clerkIdResponse.ok) {
 			const clerkData = await clerkIdResponse.json();
-			// Handle both array response and object-with-data response
 			const users = Array.isArray(clerkData) ? clerkData : (clerkData.data || []);
 			if (users.length > 0) {
 				const foundUser = users[0];
 				console.log("Found by clerkId:", foundUser.id);
-				return { 
-					...foundUser.attributes, 
-					...foundUser, 
-					id: foundUser.id, 
-					subscriptionTier 
+				return {
+					...foundUser.attributes,
+					...foundUser,
+					id: foundUser.id,
+					subscriptionTier,
 				};
 			}
 		}
@@ -63,13 +75,11 @@ export const checkUser = async () => {
 		if (emailResponse.ok) {
 			const emailData = await emailResponse.json();
 			console.log("Email search result:", emailData);
-			// Handle both array response and object-with-data response
 			const users = Array.isArray(emailData) ? emailData : (emailData.data || []);
 			if (users.length > 0) {
 				const userByEmail = users[0];
 				console.log("Found by email:", userByEmail.id, "updating clerkId...");
-				
-				// Update clerkId for existing user
+
 				const updateResponse = await fetch(
 					`${STRAPI_URL}/api/users/${userByEmail.id}`,
 					{
@@ -101,7 +111,7 @@ export const checkUser = async () => {
 
 		if (!rolesResponse.ok) {
 			console.error("Failed to fetch roles");
-			return null;
+			return clerkFallback;
 		}
 
 		const rolesData = await rolesResponse.json();
@@ -110,7 +120,7 @@ export const checkUser = async () => {
 
 		if (!authenticatedRole) {
 			console.error("No authenticated role");
-			return null;
+			return clerkFallback;
 		}
 
 		// Create new user
@@ -138,7 +148,6 @@ export const checkUser = async () => {
 		if (!createResponse.ok) {
 			const err = await createResponse.text();
 			console.error("Create failed:", err);
-			// Try one more time to fetch user by email (they might already exist)
 			const fallbackResponse = await fetch(emailUrl, {
 				headers: { Authorization: `Bearer ${STRAPI_API_TOKEN}` },
 			});
@@ -147,7 +156,6 @@ export const checkUser = async () => {
 				if (fallbackData.data && fallbackData.data.length > 0) {
 					const fallbackUser = fallbackData.data[0];
 					console.log("Found existing user on fallback, returning:", fallbackUser.id);
-					// Update their clerkId
 					await fetch(
 						`${STRAPI_URL}/api/users/${fallbackUser.id}`,
 						{
@@ -159,7 +167,6 @@ export const checkUser = async () => {
 					return { ...fallbackUser.attributes, ...fallbackUser, id: fallbackUser.id, subscriptionTier };
 				}
 			}
-			// User exists in Clerk but not properly linked - try to get by clerkId again
 			const retryClerkIdResponse = await fetch(clerkIdUrl, {
 				headers: { Authorization: `Bearer ${STRAPI_API_TOKEN}` },
 			});
@@ -171,7 +178,7 @@ export const checkUser = async () => {
 					return { ...retryUser.attributes, ...retryUser, id: retryUser.id, subscriptionTier };
 				}
 			}
-			return null;
+			return clerkFallback;
 		}
 
 		const newUser = await createResponse.json();
@@ -179,6 +186,6 @@ export const checkUser = async () => {
 		return { ...newUser.data, subscriptionTier };
 	} catch (error) {
 		console.error("checkUser error:", error.message);
-		return null;
+		return clerkFallback;
 	}
 };
