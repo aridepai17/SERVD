@@ -6,7 +6,7 @@
 [![Strapi](https://img.shields.io/badge/Strapi-5.34-4945FF?style=for-the-badge&logo=strapi)](https://strapi.io/)
 [![Clerk](https://img.shields.io/badge/Clerk-6.37-6C47FF?style=for-the-badge&logo=clerk)](https://clerk.com/)
 [![Razorpay](https://img.shields.io/badge/Razorpay-Payments-3399CC?style=for-the-badge&logo=razorpay)](https://razorpay.com/)
-[![Gemini AI](https://img.shields.io/badge/Gemini-AI-4285F4?style=for-the-badge&logo=google)](https://gemini.google.com/)
+[![Groq](https://img.shields.io/badge/Groq-AI-5B21B6?style=for-the-badge&logo=groq)](https://groq.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.0-38B2AC?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com/)
 
 **Turn your leftovers into masterpieces**
@@ -23,7 +23,7 @@
 
 **Servd** is a modern, AI-powered web application that transforms how you cook meals at home. Simply snap a photo of your fridge or pantry, and our intelligent AI chef will:
 
-- 🔍 **Identify ingredients** using Google Gemini Vision AI
+- 🔍 **Identify ingredients** using Groq Vision AI
 - 🍳 **Generate personalized recipes** based on what you have
 - 📚 **Suggest recipes from a database** of thousands of dishes
 - 💰 **Save money** by reducing food waste
@@ -99,7 +99,7 @@
 ### AI & External Services
 | Service | Purpose |
 |---------|---------|
-| **Google Gemini** | AI-powered recipe generation and image recognition |
+| **Groq** | AI-powered recipe generation and image recognition |
 | **TheMealDB** | External recipe database for browsing |
 | **Unsplash** | High-quality recipe images |
 
@@ -195,7 +195,7 @@ SERVD/
 │  │  /api/subscription/verify  │  Subscription activation     │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                                                                 │
-│              Google Gemini AI (Recipe Generation)               │
+│              Groq AI (Recipe Generation)               │
 │              TheMealDB API (Recipe Discovery)                   │
 │              Unsplash API (Recipe Images)                       │
 └──────────────────────────────┼──────────────────────────────────┘
@@ -231,13 +231,13 @@ User Input (Photo/Text)
          │
          ▼
 ┌─────────────────┐
-│ Google Gemini   │ ← AI vision for image recognition
-│ Vision API      │   AI text for recipe generation
+│ Groq Vision   │ ← AI vision for image recognition
+│ Groq API      │   AI text for recipe generation
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ Gemini AI       │ ← Generate structured recipe JSON
+│ Groq API        │ ← Generate structured recipe JSON
 │ Recipe Gen      │
 └────────┬────────┘
          │
@@ -325,7 +325,7 @@ Before you begin, ensure you have installed:
    NEXT_PUBLIC_APP_URL=http://localhost:3000
    NEXT_PUBLIC_STRAPI_URL=http://localhost:1337
    STRAPI_API_TOKEN=your-strapi-api-token
-   GEMINI_API_KEY=your-google-gemini-api-key
+    GROQ_API_KEY=your-groq-api-key
    RAZORPAY_KEY_ID=your-razorpay-key-id
    RAZORPAY_KEY_SECRET=your-razorpay-key-secret
    RAZORPAY_PLAN_ID=your-razorpay-plan-id
@@ -354,7 +354,7 @@ Before you begin, ensure you have installed:
    |---------|------------|---------|
    | **Clerk** | clerk.com | Authentication |
    | **Razorpay** | razorpay.com | Payment processing |
-   | **Google Gemini** | aistudio.google.com | AI recipe generation |
+    | **Groq** | groq.com | AI recipe generation |
    | **Arcjet** | arcjet.com | Rate limiting & security |
    | **Unsplash** | unsplash.com/developers | Recipe images |
 
@@ -657,7 +657,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **TheMealDB** for providing an amazing free recipe API
 - **Unsplash** for beautiful, free-to-use photography
-- **Google** for making Gemini AI accessible
+- **Groq** for AI recipe generation
 - **Open Source Community** for the incredible tools we build upon
 - **Our Contributors** who make Servd better every day
 
