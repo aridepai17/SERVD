@@ -2,7 +2,7 @@
  * @param {import('@strapi/types').Core.Config.Shared.ConfigParams} config
  */
 module.exports = ({ env }) => ({
-	usersPermissions: {
+	'user-permissions': {
 		config: {
 			jwt: {
 				secret: env('JWT_SECRET'),
