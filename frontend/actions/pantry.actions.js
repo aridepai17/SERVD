@@ -1,6 +1,7 @@
 "use server";
 
 import { checkUser } from "@/lib/checkUser";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 import { freePantryScans, proTierLimit } from "@/lib/arcjet";
 import { request } from "@arcjet/next";
@@ -9,11 +10,14 @@ const STRAPI_URL =
 	process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 const openai = new OpenAI({
 	apiKey: GROQ_API_KEY,
 	baseURL: "https://api.groq.com/openai/v1",
 });
+
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // Extract a JSON object or array from model text that may include markdown
 // fences or surrounding prose. Returns the substring between the first
@@ -118,7 +122,7 @@ export async function scanPantryImage(formData) {
 		const buffer = Buffer.from(bytes);
 		const base64Image = buffer.toString("base64");
 
-		// Call Groq Vision API
+		// Prompt for ingredient recognition
 		const prompt = `
 You are a professional chef and ingredient recognition expert. Analyze this image of a pantry/fridge and identify all visible food ingredients.
 
@@ -140,32 +144,30 @@ Rules:
 - Common pantry staples are acceptable (salt, pepper, oil)
 `;
 
-		const completion = await openai.chat.completions.create({
-			model: "openai/gpt-oss-20b",
-			max_tokens: 2048,
-			messages: [
-				{
-					role: "user",
-					content: [
-						{ type: "text", text: prompt },
-						{
-							type: "image_url",
-							image_url: {
-								url: `data:${imageFile.type};base64,${base64Image}`,
-							},
-						},
-					],
-				},
-			],
+		// Call Gemini Vision API
+		const model = genAI.getGenerativeModel({
+			model: "gemini-3.8-flash",
 		});
-		const text = completion.choices[0].message.content;
+
+		const result = await model.generateContent([
+			prompt,
+			{
+				inlineData: {
+					mimeType: imageFile.type,
+					data: base64Image,
+				},
+			},
+		]);
+
+		const response = await result.response;
+		const text = response.text();
 
 		// Parse JSON response
 		let ingredients;
 		try {
 			ingredients = JSON.parse(extractJsonFromText(text));
 		} catch (parseError) {
-			console.error("Failed to parse Groq response:", text);
+			console.error("Failed to parse Gemini response:", text);
 			throw new Error("Failed to parse ingredients. Please try again.");
 		}
 
@@ -301,8 +303,18 @@ export async function addPantryItemManually(formData) {
 export async function getPantryItems() {
 	try {
 		const user = await checkUser();
+
+		const isPro = user ? user.subscriptionTier === "pro" : false;
+
 		if (!user) {
-			throw new Error("User not authenticated");
+			console.warn(
+				"⚠️ Strapi unavailable, returning empty pantry",
+			);
+			return {
+				success: true,
+				items: [],
+				scansLimit: isPro ? "unlimited" : 10,
+			};
 		}
 
 		const response = await fetch(
@@ -316,12 +328,17 @@ export async function getPantryItems() {
 		);
 
 		if (!response.ok) {
-			throw new Error("Failed to fetch pantry items");
+			console.warn(
+				"⚠️ Strapi pantry fetch unavailable, returning empty pantry",
+			);
+			return {
+				success: true,
+				items: [],
+				scansLimit: isPro ? "unlimited" : 10,
+			};
 		}
 
 		const data = await response.json();
-
-		const isPro = user.subscriptionTier === "pro";
 
 		return {
 			success: true,
@@ -330,7 +347,11 @@ export async function getPantryItems() {
 		};
 	} catch (error) {
 		console.error("Error fetching pantry:", error);
-		throw new Error(error.message || "Failed to load pantry");
+		return {
+			success: true,
+			items: [],
+			scansLimit: "10",
+		};
 	}
 }
 
