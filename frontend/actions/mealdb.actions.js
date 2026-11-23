@@ -85,26 +85,34 @@ export async function getAreasWithRecipes() {
 		const areasData = await areasResponse.json();
 		const areas = areasData.meals || [];
 
-		// Check each area for recipes in parallel
-		const areasWithRecipes = await Promise.all(
-			areas.map(async (area) => {
+		// Check each area for recipes sequentially to avoid rate limiting
+		const areasWithRecipes = [];
+		for (const area of areas) {
+			try {
 				const mealsResponse = await fetch(
 					`${MEALDB_BASE}/filter.php?a=${encodeURIComponent(
 						area.strArea,
 					)}`,
 					{ next: { revalidate: 86400 } },
 				);
+
+				if (!mealsResponse.ok) {
+					continue;
+				}
+
 				const mealsData = await mealsResponse.json();
 				if (mealsData.meals && mealsData.meals.length > 0) {
-					return area;
+					areasWithRecipes.push(area);
 				}
-				return null;
-			}),
-		);
+			} catch (err) {
+				// Skip individual area failures (rate limiting, etc.)
+				continue;
+			}
+		}
 
 		return {
 			success: true,
-			areas: areasWithRecipes.filter(Boolean),
+			areas: areasWithRecipes,
 		};
 	} catch (error) {
 		console.error("Error fetching areas with recipes:", error);

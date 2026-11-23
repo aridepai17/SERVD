@@ -15,7 +15,12 @@ export default async function DashboardPage() {
 	// Fetch data server-side
 	const recipeData = await getRecipeOfTheDay();
 	const categoriesData = await getCategories();
-	const areasData = await getAreasWithRecipes();
+	let areasData = { areas: [] };
+	try {
+		areasData = await getAreasWithRecipes();
+	} catch (err) {
+		console.error("Failed to load areas:", err);
+	}
 
 	const recipeOfTheDay = recipeData?.recipe;
 	const categories = categoriesData?.categories || [];
