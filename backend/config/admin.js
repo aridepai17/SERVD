@@ -1,3 +1,6 @@
+/**
+ * @param {import('@strapi/types').Core.Config.Shared.ConfigParams} config
+ */
 module.exports = ({ env }) => ({
   auth: {
     secret: env('ADMIN_JWT_SECRET'),

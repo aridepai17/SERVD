@@ -1,7 +1,10 @@
 const path = require('path');
 
+/**
+ * @param {import('@strapi/types').Core.Config.Shared.ConfigParams} config
+ */
 module.exports = ({ env }) => {
-  const client = env('DATABASE_CLIENT', 'sqlite');
+  const client = /** @type {'mysql' | 'postgres' | 'sqlite'} */ (env('DATABASE_CLIENT', 'sqlite'));
 
   const connections = {
     mysql: {

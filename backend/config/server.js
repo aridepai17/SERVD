@@ -1,3 +1,6 @@
+/**
+ * @param {import('@strapi/types').Core.Config.Shared.ConfigParams} config
+ */
 module.exports = ({ env }) => ({
   host: env('HOST', '0.0.0.0'),
   port: env.int('PORT', 1337),
