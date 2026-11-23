@@ -71,6 +71,47 @@ export async function getAreas() {
 	}
 }
 
+// Get all areas/cuisines that have recipes
+export async function getAreasWithRecipes() {
+	try {
+		const areasResponse = await fetch(`${MEALDB_BASE}/list.php?a=list`, {
+			next: { revalidate: 604800 },
+		});
+
+		if (!areasResponse.ok) {
+			throw new Error("Failed to fetch areas");
+		}
+
+		const areasData = await areasResponse.json();
+		const areas = areasData.meals || [];
+
+		// Check each area for recipes in parallel
+		const areasWithRecipes = await Promise.all(
+			areas.map(async (area) => {
+				const mealsResponse = await fetch(
+					`${MEALDB_BASE}/filter.php?a=${encodeURIComponent(
+						area.strArea,
+					)}`,
+					{ next: { revalidate: 86400 } },
+				);
+				const mealsData = await mealsResponse.json();
+				if (mealsData.meals && mealsData.meals.length > 0) {
+					return area;
+				}
+				return null;
+			}),
+		);
+
+		return {
+			success: true,
+			areas: areasWithRecipes.filter(Boolean),
+		};
+	} catch (error) {
+		console.error("Error fetching areas with recipes:", error);
+		throw new Error(error.message || "Failed to load areas");
+	}
+}
+
 // Get meals by category
 export async function getMealsByCategory(category) {
 	try {

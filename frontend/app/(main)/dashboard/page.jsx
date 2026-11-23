@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
 	getRecipeOfTheDay,
 	getCategories,
-	getAreas,
+	getAreasWithRecipes,
 } from "@/actions/mealdb.actions";
 import { getCategoryEmoji, getCountryFlag } from "@/lib/data";
 
@@ -15,7 +15,7 @@ export default async function DashboardPage() {
 	// Fetch data server-side
 	const recipeData = await getRecipeOfTheDay();
 	const categoriesData = await getCategories();
-	const areasData = await getAreas();
+	const areasData = await getAreasWithRecipes();
 
 	const recipeOfTheDay = recipeData?.recipe;
 	const categories = categoriesData?.categories || [];

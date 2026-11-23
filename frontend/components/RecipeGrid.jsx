@@ -16,9 +16,14 @@ export default function RecipeGrid({
 
 	useEffect(() => {
 		if (value) {
-			// Capitalize first letter for API call
-			const formattedValue =
-				value.charAt(0).toUpperCase() + value.slice(1);
+			// Title-case each word for API call (e.g. "saudi arabian" → "Saudi Arabian")
+			const formattedValue = value
+				.split(" ")
+				.map(
+					(w) =>
+						w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(),
+				)
+				.join(" ");
 			fetchMeals(formattedValue);
 		}
 	}, [value]);
